@@ -1,0 +1,246 @@
+esphome:
+  name: 64x64-countdown
+  friendly_name: 64x64-countdown
+
+esp32:
+  board: esp32dev
+
+logger:
+  level: INFO
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "64x64-countdown Fallback"
+    password: "changeme"
+
+captive_portal:
+
+substitutions:
+  # Garage countdown
+  countdown_active_entity: "binary_sensor.countdown_rotary_for_garage_garage_departure_countdown_active"
+  countdown_mmss_entity_sensor: "sensor.countdown_rotary_for_garage_garage_departure_countdown_mmss"
+  countdown_mmss_entity_textsensor: "text_sensor.countdown_rotary_for_garage_garage_departure_countdown_mmss"
+  # 7" panel car-door timer (second countdown source; rotary wins if both run)
+  panel_active_entity: "binary_sensor.laundry_voiceassist7inch_garage_timer_active"
+  panel_mmss_entity: "sensor.laundry_voiceassist7inch_garage_timer_mmss"
+
+  # Alarmo
+  alarmo_entity: "alarm_control_panel.alarmo"
+
+  # Alarmo arming countdown (set these to whatever HA exposes for your exit delay)
+  alarmo_arm_mmss_entity_sensor: "sensor.alarmo_time_remaining"
+  alarmo_arm_mmss_entity_textsensor: "text_sensor.alarmo_time_remaining"
+
+time:
+  - platform: homeassistant
+    id: ha_time
+  - platform: sntp
+    id: sntp_time
+
+binary_sensor:
+  - platform: homeassistant
+    id: countdown_active
+    entity_id: ${countdown_active_entity}
+  - platform: homeassistant
+    id: panel_countdown_active
+    entity_id: ${panel_active_entity}
+
+text_sensor:
+  - platform: homeassistant
+    id: alarmo_state
+    entity_id: ${alarmo_entity}
+
+  # Garage MMSS as HA sensor.* (common)
+  - platform: homeassistant
+    id: countdown_mmss_sensor
+    entity_id: ${countdown_mmss_entity_sensor}
+
+  # Garage MMSS as HA text_sensor.* (fallback)
+  - platform: homeassistant
+    id: countdown_mmss_textsensor
+    entity_id: ${countdown_mmss_entity_textsensor}
+
+  # 7" panel car-door timer MMSS
+  - platform: homeassistant
+    id: panel_mmss
+    entity_id: ${panel_mmss_entity}
+
+  # Alarmo arming countdown as HA sensor.* (optional)
+  - platform: homeassistant
+    id: alarmo_arm_mmss_sensor
+    entity_id: ${alarmo_arm_mmss_entity_sensor}
+
+  # Alarmo arming countdown as HA text_sensor.* (optional)
+  - platform: homeassistant
+    id: alarmo_arm_mmss_textsensor
+    entity_id: ${alarmo_arm_mmss_entity_textsensor}
+
+font:
+  - file: "gfonts://Roboto Mono"
+    id: font_countdown
+    size: 28
+  - file: "gfonts://Roboto Mono"
+    id: font_time
+    size: 22
+  - file: "gfonts://Roboto Mono"
+    id: font_small
+    size: 12
+
+display:
+  - platform: hub75
+    id: matrix
+
+    panel_width: 64
+    panel_height: 64
+
+    shift_driver: FM6126A
+
+    # Wiring (E on RX2 = GPIO16)
+    r1_pin: GPIO25
+    g1_pin: GPIO26
+    b1_pin: GPIO27
+    r2_pin: GPIO14
+    g2_pin: GPIO18
+    b2_pin: GPIO19
+
+    a_pin: GPIO23
+    b_pin: GPIO22
+    c_pin: GPIO21
+    d_pin: GPIO17
+    e_pin: GPIO16   # RX2
+
+    clk_pin: GPIO13
+    lat_pin: GPIO32
+    oe_pin: GPIO33
+
+    brightness: 80
+    bit_depth: 5
+    gamma_correct: CIE1931
+
+    update_interval: 250ms
+
+    lambda: |-
+      const int w = it.get_width();
+      const int h = it.get_height();
+      const int cx = w / 2;
+      const int top_h = (h / 3) + 6;      // top third + 6px
+      const int y_main = top_h + 2;       // main content starts below the flashing zone
+
+      it.clear();
+
+      auto now = id(ha_time).now();
+      if (!now.is_valid()) now = id(sntp_time).now();
+
+      auto ok = [&](const std::string &s) -> bool {
+        return !(s.empty() || s == "unknown" || s == "unavailable");
+      };
+
+      // ----- Alarmo state handling -----
+      std::string al = id(alarmo_state).state;
+
+      const bool is_armed =
+          (al.rfind("armed_", 0) == 0);     // armed_home / armed_away / armed_night / etc.
+      const bool is_triggered = (al == "triggered");
+      const bool is_pending   = (al == "pending" || al == "arming"); // exit delay / arming phase
+
+      const bool blink = ((millis() / 400) % 2) == 0;
+
+      // Flash top third (+6px):
+      // - RED when arming/pending
+      // - BLUE when armed or triggered
+      if (blink) {
+        if (is_pending) {
+          it.filled_rectangle(0, 0, w, top_h, Color(255, 0, 0));
+        } else if (is_armed || is_triggered) {
+          it.filled_rectangle(0, 0, w, top_h, Color(0, 0, 255));
+        }
+      }
+
+      // Alarmo short label (centered, top line)
+      std::string al_short = "AL:??";
+      if      (al == "disarmed")     al_short = "DISARMED";
+      else if (al == "armed_home")   al_short = "ARM HOME";
+      else if (al == "armed_away")   al_short = "ARM AWAY";
+      else if (al == "armed_night")  al_short = "ARM NITE";
+      else if (al == "pending")      al_short = "ARMING";
+      else if (al == "arming")       al_short = "ARMING";
+      else if (al == "triggered")    al_short = "ALARM!";
+      else if (ok(al))               al_short = al;
+
+      it.printf(cx, 0, id(font_small), Color(255, 255, 255), TextAlign::TOP_CENTER, "%s", al_short.c_str());
+
+      // If arming, show arming countdown at top (second line) if available
+      std::string arm_mmss = id(alarmo_arm_mmss_sensor).state;
+      if (!ok(arm_mmss)) arm_mmss = id(alarmo_arm_mmss_textsensor).state;
+
+      if (is_pending) {
+        // Sanitize to 4 digits, then format as MM:SS if we can
+        char d[5] = {'0','0','0','0','\0'};
+        int di = 0;
+        for (size_t i = 0; i < arm_mmss.size() && di < 4; i++) {
+          if (arm_mmss[i] >= '0' && arm_mmss[i] <= '9') d[di++] = arm_mmss[i];
+        }
+        char mmss_colon[6];
+        snprintf(mmss_colon, sizeof(mmss_colon), "%c%c:%c%c", d[0], d[1], d[2], d[3]);
+
+        if (ok(arm_mmss)) {
+          it.printf(cx, 12, id(font_small), Color(255, 255, 255), TextAlign::TOP_CENTER, "%s", mmss_colon);
+        } else {
+          it.printf(cx, 12, id(font_small), Color(255, 255, 255), TextAlign::TOP_CENTER, "ARM");
+        }
+      }
+
+      // ----- Garage countdown + time -----
+      // Two sources: rotary countdown and the 7" panel car-door timer.
+      // Rotary wins when both are running.
+      const bool rotary_active = id(countdown_active).state;
+      const bool panel_active = id(panel_countdown_active).state;
+      const bool garage_active = rotary_active || panel_active;
+
+      std::string mmss = id(countdown_mmss_sensor).state;
+      if (!ok(mmss)) mmss = id(countdown_mmss_textsensor).state;
+      if (!rotary_active && panel_active) mmss = id(panel_mmss).state;
+
+      // If garage countdown is active AND we have MMSS, show it big (red) in main area
+      if (garage_active && ok(mmss)) {
+        char cd[5] = {'0','0','0','0','\0'};
+        int idx = 0;
+        for (size_t i = 0; i < mmss.size() && idx < 4; i++) {
+          if (mmss[i] >= '0' && mmss[i] <= '9') cd[idx++] = mmss[i];
+        }
+        it.printf(cx, y_main, id(font_countdown), Color(255, 0, 0), TextAlign::TOP_CENTER, "%s", cd);
+        it.printf(cx, 63, id(font_small), Color(255, 255, 255), TextAlign::BASELINE_CENTER, "COUNTDOWN");
+        return;
+      }
+
+      // Otherwise show time (12h with colon). Turn RED when garage countdown is active.
+      Color time_color = garage_active ? Color(255, 0, 0) : Color(0, 255, 0);
+
+      if (now.is_valid()) {
+        int hour24 = now.hour;
+        int hour12 = hour24 % 12;
+        if (hour12 == 0) hour12 = 12;
+
+        char tbuf[6]; // "h:mm"
+        snprintf(tbuf, sizeof(tbuf), "%d:%02d", hour12, now.minute);
+
+        it.printf(cx, y_main + 2, id(font_time), time_color, TextAlign::TOP_CENTER, "%s", tbuf);
+
+        char ss[3];
+        snprintf(ss, sizeof(ss), "%02d", now.second);
+        it.printf(cx, 63, id(font_small), Color(255, 255, 255), TextAlign::BASELINE_CENTER, "%s", ss);
+      } else {
+        it.printf(cx, y_main + 6, id(font_small), Color(255, 255, 0), TextAlign::TOP_CENTER, "NO TIME");
+      }
+
+dashboard_import:
+  package_import_url: github://gbroeckling/esphome-devices/32x64-countdown/32x64-countdown.yaml@main
+  import_full_config: true
+

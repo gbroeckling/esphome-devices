@@ -1,0 +1,341 @@
+esphome:
+  name: second-64x64-with-trinity
+  friendly_name: Second 64x64 with Trinity
+
+esp32:
+  board: esp32dev
+
+logger:
+  level: INFO
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+captive_portal:
+
+substitutions:
+  # Garage countdown
+  countdown_active_entity: "binary_sensor.countdown_rotary_for_garage_garage_departure_countdown_active"
+  countdown_mmss_entity_sensor: "sensor.countdown_rotary_for_garage_garage_departure_countdown_mmss"
+  countdown_mmss_entity_textsensor: "text_sensor.countdown_rotary_for_garage_garage_departure_countdown_mmss"
+  # 7" panel car-door timer (second countdown source; rotary wins if both run)
+  panel_active_entity: "binary_sensor.laundry_voiceassist7inch_garage_timer_active"
+  panel_mmss_entity: "sensor.laundry_voiceassist7inch_garage_timer_mmss"
+
+  # Alarmo
+  alarmo_entity: "alarm_control_panel.alarmo"
+
+  # Alarmo arming countdown
+  alarmo_arm_mmss_entity_sensor: "sensor.alarmo_time_remaining"
+  alarmo_arm_mmss_entity_textsensor: "text_sensor.alarmo_time_remaining"
+
+time:
+  - platform: homeassistant
+    id: ha_time
+  - platform: sntp
+    id: sntp_time
+
+# ---- Local countdown recovery ----
+# If HA updates stop (WiFi/API hiccup), we keep counting down locally.
+# When HA updates resume, we resync from MMSS automatically.
+globals:
+  - id: local_cd_s
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+  - id: last_remote_cd_update_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t nowms = millis();
+
+          // If countdown is running locally AND HA hasn't updated MMSS recently,
+          // decrement locally once per second.
+          if (id(local_cd_s) > 0) {
+            const bool remote_stale = ((uint32_t)(nowms - id(last_remote_cd_update_ms)) > 2500);
+            if (remote_stale) {
+              id(local_cd_s) -= 1;
+              if (id(local_cd_s) < 0) id(local_cd_s) = 0;
+            }
+          }
+
+binary_sensor:
+  - platform: homeassistant
+    id: countdown_active
+    entity_id: ${countdown_active_entity}
+    on_state:
+      then:
+        - lambda: |-
+            // If BOTH sources say countdown is OFF, force local to 0 so UI returns to clock.
+            if (!id(countdown_active).state && !id(panel_countdown_active).state) {
+              id(local_cd_s) = 0;
+            }
+  - platform: homeassistant
+    id: panel_countdown_active
+    entity_id: ${panel_active_entity}
+    on_state:
+      then:
+        - lambda: |-
+            if (!id(countdown_active).state && !id(panel_countdown_active).state) {
+              id(local_cd_s) = 0;
+            }
+
+text_sensor:
+  - platform: homeassistant
+    id: alarmo_state
+    entity_id: ${alarmo_entity}
+
+  # Garage MMSS as HA sensor.* (common)
+  - platform: homeassistant
+    id: countdown_mmss_sensor
+    entity_id: ${countdown_mmss_entity_sensor}
+    on_value:
+      then:
+        - lambda: |-
+            // Parse last 4 digits (MMSS) from x and sync local countdown
+            std::string digits;
+            digits.reserve(x.size());
+            for (char c : x) if (c >= '0' && c <= '9') digits.push_back(c);
+
+            if (digits.empty()) return;
+
+            char d[5] = {'0','0','0','0','\0'};
+            if (digits.size() >= 4) {
+              for (int i = 0; i < 4; i++) d[i] = digits[digits.size() - 4 + i];
+            } else {
+              int start = 4 - (int)digits.size();
+              for (size_t i = 0; i < digits.size(); i++) d[start + (int)i] = digits[i];
+            }
+
+            int mm = (d[0]-'0')*10 + (d[1]-'0');
+            int ss = (d[2]-'0')*10 + (d[3]-'0');
+            id(local_cd_s) = mm * 60 + ss;
+
+            id(last_remote_cd_update_ms) = millis();
+
+  # Garage MMSS as HA text_sensor.* (fallback)
+  - platform: homeassistant
+    id: countdown_mmss_textsensor
+    entity_id: ${countdown_mmss_entity_textsensor}
+    on_value:
+      then:
+        - lambda: |-
+            std::string digits;
+            digits.reserve(x.size());
+            for (char c : x) if (c >= '0' && c <= '9') digits.push_back(c);
+
+            if (digits.empty()) return;
+
+            char d[5] = {'0','0','0','0','\0'};
+            if (digits.size() >= 4) {
+              for (int i = 0; i < 4; i++) d[i] = digits[digits.size() - 4 + i];
+            } else {
+              int start = 4 - (int)digits.size();
+              for (size_t i = 0; i < digits.size(); i++) d[start + (int)i] = digits[i];
+            }
+
+            int mm = (d[0]-'0')*10 + (d[1]-'0');
+            int ss = (d[2]-'0')*10 + (d[3]-'0');
+            id(local_cd_s) = mm * 60 + ss;
+
+            id(last_remote_cd_update_ms) = millis();
+
+  # 7" panel car-door timer MMSS (only drives local when rotary is not running)
+  - platform: homeassistant
+    id: panel_mmss
+    entity_id: ${panel_mmss_entity}
+    on_value:
+      then:
+        - lambda: |-
+            if (id(countdown_active).state) return;  // rotary wins
+            std::string digits;
+            digits.reserve(x.size());
+            for (char c : x) if (c >= '0' && c <= '9') digits.push_back(c);
+
+            if (digits.empty()) return;
+
+            char d[5] = {'0','0','0','0','\0'};
+            if (digits.size() >= 4) {
+              for (int i = 0; i < 4; i++) d[i] = digits[digits.size() - 4 + i];
+            } else {
+              int start = 4 - (int)digits.size();
+              for (size_t i = 0; i < digits.size(); i++) d[start + (int)i] = digits[i];
+            }
+
+            int mm = (d[0]-'0')*10 + (d[1]-'0');
+            int ss = (d[2]-'0')*10 + (d[3]-'0');
+            id(local_cd_s) = mm * 60 + ss;
+
+            id(last_remote_cd_update_ms) = millis();
+
+  # Alarmo arming countdown as HA sensor.* (optional)
+  - platform: homeassistant
+    id: alarmo_arm_mmss_sensor
+    entity_id: ${alarmo_arm_mmss_entity_sensor}
+
+  # Alarmo arming countdown as HA text_sensor.* (optional)
+  - platform: homeassistant
+    id: alarmo_arm_mmss_textsensor
+    entity_id: ${alarmo_arm_mmss_entity_textsensor}
+
+font:
+  - file: "gfonts://Roboto Mono"
+    id: font_countdown
+    size: 28
+  - file: "gfonts://Roboto Mono"
+    id: font_time
+    size: 22
+  - file: "gfonts://Inter@800"
+    id: font_label
+    size: 10
+
+display:
+  - platform: hub75
+    id: matrix
+
+    board: esp32-trinity
+
+    panel_width: 64
+    panel_height: 64
+
+    shift_driver: FM6126A
+
+    brightness: 80
+    bit_depth: 5
+    gamma_correct: CIE1931
+
+    update_interval: 250ms
+
+    lambda: |-
+      const int w = it.get_width();
+      const int h = it.get_height();
+      const int cx = w / 2;
+
+      const int top_h = (h / 3) + 6;   // top third + 6px
+      const int y_main = top_h + 1;    // main content starts just below flashing zone
+
+      it.clear();
+
+      auto now = id(ha_time).now();
+      if (!now.is_valid()) now = id(sntp_time).now();
+
+      auto ok = [&](const std::string &s) -> bool {
+        return !(s.empty() || s == "unknown" || s == "unavailable");
+      };
+
+      // ----- Alarmo state handling -----
+      std::string al = id(alarmo_state).state;
+
+      const bool is_armed = (al.rfind("armed_", 0) == 0);
+      const bool is_triggered = (al == "triggered");
+      const bool is_pending = (al == "pending" || al == "arming");
+
+      const bool blink = ((millis() / 400) % 2) == 0;
+
+      // Flash top third (+6px):
+      if (blink) {
+        if (is_pending) {
+          it.filled_rectangle(0, 0, w, top_h, Color(255, 0, 0));
+        } else if (is_armed || is_triggered) {
+          it.filled_rectangle(0, 0, w, top_h, Color(0, 0, 255));
+        }
+      }
+
+      // Alarmo label (centered, top line)
+      std::string al_short = "AL:??";
+      if      (al == "disarmed")     al_short = "DISARMED";
+      else if (al == "armed_home")   al_short = "ARM HOME";
+      else if (al == "armed_away")   al_short = "ARM AWAY";
+      else if (al == "armed_night")  al_short = "ARM NITE";
+      else if (al == "pending")      al_short = "ARMING";
+      else if (al == "arming")       al_short = "ARMING";
+      else if (al == "triggered")    al_short = "ALARM!";
+      else if (ok(al))               al_short = al;
+
+      it.printf(cx, 0, id(font_label), Color(255, 255, 255),
+                TextAlign::TOP_CENTER, "%s", al_short.c_str());
+
+      // If arming, show arming countdown at top (second line) if available
+      std::string arm_mmss = id(alarmo_arm_mmss_sensor).state;
+      if (!ok(arm_mmss)) arm_mmss = id(alarmo_arm_mmss_textsensor).state;
+
+      if (is_pending) {
+        char d[5] = {'0','0','0','0','\0'};
+        int di = 0;
+        for (size_t i = 0; i < arm_mmss.size() && di < 4; i++) {
+          if (arm_mmss[i] >= '0' && arm_mmss[i] <= '9') d[di++] = arm_mmss[i];
+        }
+        char mmss_colon[6];
+        snprintf(mmss_colon, sizeof(mmss_colon), "%c%c:%c%c", d[0], d[1], d[2], d[3]);
+
+        if (ok(arm_mmss)) {
+          it.printf(cx, 12, id(font_label), Color(255, 255, 255),
+                    TextAlign::TOP_CENTER, "%s", mmss_colon);
+        } else {
+          it.printf(cx, 12, id(font_label), Color(255, 255, 255),
+                    TextAlign::TOP_CENTER, "ARM");
+        }
+      }
+
+      // ----- Garage countdown + time -----
+      const bool garage_active = id(countdown_active).state || id(panel_countdown_active).state;
+
+      // Show countdown when we have local seconds (keeps running if HA freezes)
+      if (id(local_cd_s) > 0) {
+        int s = id(local_cd_s);
+        int mm = s / 60;
+        int ss = s % 60;
+        if (mm > 99) mm = 99;
+
+        char cd[5];
+        snprintf(cd, sizeof(cd), "%02d%02d", mm, ss);
+
+        // ✅ moved UP 2 pixels
+        it.printf(cx, y_main - 3, id(font_countdown), Color(255, 0, 0),
+                  TextAlign::TOP_CENTER, "%s", cd);
+
+        it.printf(cx, 63, id(font_label), Color(255, 255, 255),
+                  TextAlign::BASELINE_CENTER, "COUNTDOWN");
+        return;
+      }
+
+      // Otherwise show time, turn RED whenever HA "active" is ON (even if MMSS missing)
+      Color time_color = garage_active ? Color(255, 0, 0) : Color(0, 255, 0);
+
+      if (now.is_valid()) {
+        int hour24 = now.hour;
+        int hour12 = hour24 % 12;
+        if (hour12 == 0) hour12 = 12;
+
+        char tbuf[6]; // "h:mm"
+        snprintf(tbuf, sizeof(tbuf), "%d:%02d", hour12, now.minute);
+
+        it.printf(cx, y_main + 2, id(font_time), time_color,
+                  TextAlign::TOP_CENTER, "%s", tbuf);
+
+        // Seconds bottom-right (no overlap)
+        char ssbuf[3];
+        snprintf(ssbuf, sizeof(ssbuf), "%02d", now.second);
+        it.printf(w - 1, 63, id(font_label), Color(255, 255, 255),
+                  TextAlign::BASELINE_RIGHT, "%s", ssbuf);
+      } else {
+        it.printf(cx, y_main + 6, id(font_label), Color(255, 255, 0),
+                  TextAlign::TOP_CENTER, "NO TIME");
+      }
+
+dashboard_import:
+  package_import_url: github://gbroeckling/esphome-devices/second-64x64-with-trinity/second-64x64-with-trinity.yaml@main
+  import_full_config: true
+

@@ -1,0 +1,2242 @@
+substitutions:
+  name: voice7exp
+  friendly_name: "Voice7Exp"
+  # --- I2S AUDIO PINS (kept as requested) ---
+  i2s_bclk_pin: GPIO32
+  i2s_lrclk_pin: GPIO33
+  i2s_din_pin: GPIO46
+  i2s_dout_pin: GPIO47
+  # Dimmer-select (slider controls selected ones)
+  e2: "light.kitchen_east"
+  e2_name: "Kitchen East"
+  e3: "light.kitchen_valance_west"
+  e3_name: "Valance West"
+  e4: "light.poker_pots"
+  e4_name: "Poker Pots"
+  e5: "light.valance_far_west"
+  e5_name: "Valance Far W"
+  e6: "light.pots_main_north"
+  e6_name: "Pots Main N"
+  e8: "light.office_pots"
+  e8_name: "Office Pots"
+  # Outside/Laundry/Garage lights (split 3-button panel)
+  e15: "light.outside_pots"
+  e15_name: "Outside"
+  garage_lights: "switch.quectel_matter_product_2"
+  garage_lights_name: "Garage"
+  laundry_lights: "light.pantrydimmermodule_xbc026efffe5f7980"
+  laundry_lights_name: "Laundry"
+  # Non-dimmer toggles (NO slider)
+  e9: "light.old_white_kitchen_east"
+  e9_name: "Old White KE"
+  e10: "light.quin_kitchen_valance_main"
+  e10_name: "Valance Main"
+  e11: "light.quin_kitchen_valance"
+  e11_name: "Quin Valance"
+  e12: "light.domraem_rgbwc"
+  e12_name: "DOMRAEM"
+  e14: "light.driveway_a1_slwf_09"
+  e14_name: "Driveway"
+  # WLED segmented controls
+  w1: "light.wled_gledopto"
+  w2: "light.wled_soundreactive_2"
+  w3: "light.upper_north_2"
+  w4: "light.wled"
+  w5: "light.pilltaker_wled"
+  w6: "light.quinled_far_west_valance"
+  w7: "light.a1_slwf_09"
+  w8: "light.upper_south_2"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2026.7.0
+  on_boot:
+    priority: 600
+    then:
+      - script.execute: refresh_all_button_styles
+      - script.execute: cd7_publish
+      - script.execute: refresh_clock
+      - script.execute: voice_state_idle
+
+esp32:
+  variant: esp32p4
+  flash_size: 16MB
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+
+# Required by display.mipi_dsi on ESP32-P4
+esp_ldo:
+  channel: 3
+  voltage: 2.7V
+
+# ESP32-P4 + hosted ESP32-C6 WiFi6/BLE
+esp32_hosted:
+  variant: ESP32C6
+  reset_pin: GPIO54
+  cmd_pin: GPIO19
+  clk_pin: GPIO18
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17
+  active_high: true
+
+psram:
+  mode: hex
+  speed: 200MHz
+
+logger:
+  level: INFO
+
+time:
+  - platform: homeassistant
+    id: ha_time
+    on_time:
+      - seconds: 0
+        then:
+          - script.execute: refresh_clock
+
+ota:
+  - platform: esphome
+
+api:
+  reboot_timeout: 0s
+
+# ===== Wired ethernet (IP101 PHY, from the proven old voice7exp config) =====
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  clk:
+    pin: GPIO50
+    mode: CLK_EXT_IN
+  phy_addr: 1
+  power_pin: GPIO51
+
+http_request:
+
+update:
+  - platform: esp32_hosted
+    name: "C6 Coprocessor Firmware"
+    type: http
+    source: https://esphome.github.io/esp-hosted-firmware/manifest/esp32c6.json
+    update_interval: 6h
+
+# ===== BLE (tuned for WiFi coexistence) =====
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+    interval: 1200ms
+    window: 600ms
+    continuous: true
+  max_connections: 3
+
+bluetooth_proxy:
+  active: true
+  cache_services: true
+
+# =========================
+# I2S Audio - full voice stack.
+# INMP441 mic (24-bit data in 32-bit frames - 16bit = silence) + external DAC
+# speaker on shared BCLK/LRCLK pins. ReSpeaker-proven architecture: MIC is
+# primary/clock master (always capturing for the wake engine, clocks never
+# stop); SPEAKER is secondary at the same 16k/32bit format riding those
+# clocks, timeout 500ms. Never give the two directions different formats on
+# shared pins, and never leave the speaker as an always-on primary (starves
+# the wake engine's ring buffer).
+# =========================
+# Single time-shared bus (p4-guition pattern): mic and speaker NEVER run
+# simultaneously - mww/VA stop the mic before playback, resume after idle.
+# This lets each direction use its native format: INMP441 needs 32-bit
+# frames, the wired DAC board needs 16-bit mono (32-bit frames = silence).
+i2s_audio:
+  - id: i2s_bus
+    i2s_bclk_pin: ${i2s_bclk_pin}
+    i2s_lrclk_pin: ${i2s_lrclk_pin}
+
+microphone:
+  - platform: i2s_audio
+    id: mic_in
+    i2s_audio_id: i2s_bus
+    i2s_din_pin: ${i2s_din_pin}
+    adc_type: external
+    pdm: false
+    sample_rate: 16000
+    bits_per_sample: 32bit
+    channel: left
+
+speaker:
+  - platform: i2s_audio
+    id: spk_out
+    i2s_audio_id: i2s_bus
+    i2s_dout_pin: ${i2s_dout_pin}
+    dac_type: external
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    channel: mono
+    buffer_duration: 300ms
+    timeout: 100ms
+
+media_player:
+  - platform: speaker
+    id: va_media_player
+    name: "Voice7Exp Media"
+    announcement_pipeline:
+      speaker: spk_out
+      format: FLAC
+      num_channels: 1
+      sample_rate: 16000
+
+# -------- Wake word: hey_jarvis --------
+# MUST be built with the 2026.7.3+ venv (2026.2.1 tflite = deaf device)
+micro_wake_word:
+  id: mww
+  microphone:
+    microphone: mic_in
+    channels: 0
+    gain_factor: 4
+  stop_after_detection: true
+  vad:
+  models:
+    - model: hey_jarvis
+  on_wake_word_detected:
+    - logger.log: "Wake word detected"
+    - script.execute: voice_state_listening
+    - voice_assistant.start:
+
+voice_assistant:
+  id: va
+  microphone:
+    microphone: mic_in
+    channels: 0
+    gain_factor: 4
+  media_player: va_media_player
+  use_wake_word: false
+  noise_suppression_level: 2
+  auto_gain: 31dBFS
+  volume_multiplier: 2.0
+  on_client_connected:
+    - logger.log: "VA: HA connected"
+    - micro_wake_word.start:
+  on_client_disconnected:
+    - logger.log: "VA: HA disconnected"
+    - script.execute: voice_state_idle
+  on_listening:
+    - script.execute: voice_state_listening
+  on_stt_end:
+    - script.execute: voice_state_thinking
+  on_tts_start:
+    - script.execute: voice_state_speaking
+    - lvgl.label.update:
+        id: va_resp_lbl
+        text: !lambda 'return x;' 
+  on_end:
+    - wait_until:
+        condition:
+          media_player.is_idle:
+            id: va_media_player
+        timeout: 30s
+    - micro_wake_word.start:
+    - script.execute: voice_state_idle
+  on_error:
+    - logger.log:
+        level: WARN
+        format: "VA error"
+    - micro_wake_word.start:
+    - script.execute: voice_state_idle
+
+# =========================
+# Fonts
+# =========================
+font:
+  - file: "gfonts://Inter@800"
+    id: font_clock
+    size: 54
+    glyphs: ['0','1','2','3','4','5','6','7','8','9',':','-']
+  - file: "gfonts://Inter@400"
+    id: font_date
+    size: 15
+  - file: "gfonts://Inter@700"
+    id: font_chip
+    size: 16
+  - file: "gfonts://Inter@700"
+    id: font_btn
+    size: 22
+  - file: "gfonts://Inter@700"
+    id: font_btn_small
+    size: 18
+
+# =========================
+# Touch (GT911)
+# =========================
+i2c:
+  - id: bus_a
+    sda: GPIO07
+    scl: GPIO08
+    frequency: 400kHz
+    scan: true
+
+# NOTE: no transform block — since the 2026.7 move of rotation into lvgl,
+# lvgl applies the rotation mapping to touch itself; a transform here would
+# double-transform and misroute every tap (all presses landed on one button)
+touchscreen:
+  - platform: gt911
+    id: my_touchscreen
+    i2c_id: bus_a
+    interrupt_pin: GPIO21
+    update_interval: 50ms
+
+# =========================
+# Backlight (PWM)
+# =========================
+output:
+  - platform: ledc
+    id: backlight_output
+    pin: GPIO23
+    frequency: 100Hz
+    inverted: true
+    min_power: 0.0
+    max_power: 0.8
+    zero_means_zero: true
+
+light:
+  - platform: monochromatic
+    id: display_backlight
+    name: "${friendly_name} Backlight"
+    output: backlight_output
+    restore_mode: ALWAYS_ON
+    entity_category: config
+
+# =========================
+# Display (MIPI DSI)
+# =========================
+display:
+  - platform: mipi_dsi
+    id: tft_display
+    model: JC1060P470
+    reset_pin:
+      number: GPIO05
+    update_interval: never
+    auto_clear_enabled: false
+    hsync_pulse_width: 20
+
+# =========================
+# HA state sources
+# =========================
+binary_sensor:
+  # Published for the 64x64 matrix displays (same pattern as the rotary)
+  - platform: template
+    id: garage_timer_active_pub
+    name: "Garage Timer Active"
+  - platform: homeassistant
+    id: garage_door
+    entity_id: binary_sensor.0xffffb40e0601ab25_contact
+    on_state:
+      then:
+        - script.execute: refresh_garage_ui
+  - platform: homeassistant
+    id: car_door_contact
+    entity_id: binary_sensor.0xa4c13857b6c49921_contact
+    on_state:
+      then:
+        - script.execute: refresh_car_door_ui
+  - platform: homeassistant
+    id: truck_door_contact
+    entity_id: binary_sensor.0xa4c13827776ddf1d_contact
+    on_state:
+      then:
+        - script.execute: refresh_truck_door_ui
+
+sensor:
+  - platform: homeassistant
+    id: w1_bri
+    entity_id: ${w1}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w2_bri
+    entity_id: ${w2}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w3_bri
+    entity_id: ${w3}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w4_bri
+    entity_id: ${w4}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w5_bri
+    entity_id: ${w5}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w6_bri
+    entity_id: ${w6}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w7_bri
+    entity_id: ${w7}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: w8_bri
+    entity_id: ${w8}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: e11_bri
+    entity_id: ${e11}
+    attribute: brightness
+    internal: true
+  - platform: homeassistant
+    id: e12_bri
+    entity_id: ${e12}
+    attribute: brightness
+    internal: true
+
+text_sensor:
+  - platform: homeassistant
+    id: w4_state
+    entity_id: ${w4}
+    on_value:
+      then:
+        - script.execute: refresh_wbtn4_style
+  - platform: homeassistant
+    id: w5_state
+    entity_id: ${w5}
+    on_value:
+      then:
+        - script.execute: refresh_wbtn5_style
+  - platform: homeassistant
+    id: w6_state
+    entity_id: ${w6}
+    on_value:
+      then:
+        - script.execute: refresh_wbtn6_style
+  - platform: homeassistant
+    id: w7_state
+    entity_id: ${w7}
+    on_value:
+      then:
+        - script.execute: refresh_wbtn7_style
+  - platform: homeassistant
+    id: w8_state
+    entity_id: ${w8}
+    on_value:
+      then:
+        - script.execute: refresh_wbtn8_style
+  # Published for the 64x64 matrix displays (same MMSS format as the rotary)
+  - platform: template
+    id: garage_timer_mmss_pub
+    name: "Garage Timer MMSS"
+    update_interval: never
+  - platform: homeassistant
+    id: e2_state
+    entity_id: ${e2}
+    on_value:
+      then:
+        - script.execute: refresh_btn2_style
+  - platform: homeassistant
+    id: e3_state
+    entity_id: ${e3}
+    on_value:
+      then:
+        - script.execute: refresh_btn3_style
+  - platform: homeassistant
+    id: e4_state
+    entity_id: ${e4}
+    on_value:
+      then:
+        - script.execute: refresh_btn4_style
+  - platform: homeassistant
+    id: e5_state
+    entity_id: ${e5}
+    on_value:
+      then:
+        - script.execute: refresh_btn5_style
+  - platform: homeassistant
+    id: e6_state
+    entity_id: ${e6}
+    on_value:
+      then:
+        - script.execute: refresh_btn6_style
+  - platform: homeassistant
+    id: e8_state
+    entity_id: ${e8}
+    on_value:
+      then:
+        - script.execute: refresh_btn8_style
+  - platform: homeassistant
+    id: e15_state
+    entity_id: ${e15}
+    on_value:
+      then:
+        - script.execute: refresh_outside_ui
+  - platform: homeassistant
+    id: garage_lights_state
+    entity_id: ${garage_lights}
+    on_value:
+      then:
+        - script.execute: refresh_garage_lights_ui
+  - platform: homeassistant
+    id: laundry_state
+    entity_id: ${laundry_lights}
+    on_value:
+      then:
+        - script.execute: refresh_laundry_ui
+  - platform: homeassistant
+    id: e9_state
+    entity_id: ${e9}
+    on_value:
+      then:
+        - script.execute: refresh_btn9_style
+  - platform: homeassistant
+    id: e10_state
+    entity_id: ${e10}
+    on_value:
+      then:
+        - script.execute: refresh_btn10_style
+  - platform: homeassistant
+    id: e11_state
+    entity_id: ${e11}
+    on_value:
+      then:
+        - script.execute: refresh_btn11_style
+  - platform: homeassistant
+    id: e12_state
+    entity_id: ${e12}
+    on_value:
+      then:
+        - script.execute: refresh_btn12_style
+  - platform: homeassistant
+    id: e14_state
+    entity_id: ${e14}
+    on_value:
+      then:
+        - script.execute: refresh_btn13_style
+  - platform: homeassistant
+    id: w1_state
+    entity_id: ${w1}
+    on_value:
+      then:
+        - lambda: |-
+            if (x == "on") id(w1_on) = true;
+            else if (x == "off") id(w1_on) = false;
+            else return;
+        - script.execute: refresh_w1_ui
+  - platform: homeassistant
+    id: w2_state
+    entity_id: ${w2}
+    on_value:
+      then:
+        - lambda: |-
+            if (x == "on") id(w2_on) = true;
+            else if (x == "off") id(w2_on) = false;
+            else return;
+        - script.execute: refresh_w2_ui
+  - platform: homeassistant
+    id: w3_state
+    entity_id: ${w3}
+    on_value:
+      then:
+        - lambda: |-
+            if (x == "on") id(w3_on) = true;
+            else if (x == "off") id(w3_on) = false;
+            else return;
+        - script.execute: refresh_w3_ui
+
+# =========================
+# Globals
+# =========================
+interval:
+  # Car-door timer tick
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: "return id(cd7_running) && id(cd7_remaining_s) > 0;"
+          then:
+            - lambda: |-
+                id(cd7_remaining_s) -= 1;
+                if (id(cd7_remaining_s) < 0) id(cd7_remaining_s) = 0;
+            - script.execute: cd7_publish
+            - script.execute: refresh_car_timed_btn
+            - if:
+                condition:
+                  lambda: "return id(cd7_remaining_s) == 0;"
+                then:
+                  - script.execute: car_timer_finish
+
+globals:
+  # Car-door timer state
+  - id: cd7_remaining_s
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: cd7_running
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: cd7_btn_long
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: pending_brightness_pct
+    type: int
+    restore_value: no
+    initial_value: "50"
+  # 0 = slider drives the dimmer group; 1-10 = slider drives one LED unit
+  - id: slider_target
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: t2_sel
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t3_sel
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t4_sel
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t5_sel
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t6_sel
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t8_sel
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: w1_on
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: w2_on
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: w3_on
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: car_last_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: truck_last_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+# =========================
+# Scripts
+# =========================
+script:
+  - id: refresh_clock
+    then:
+      - lvgl.label.update:
+          id: clock_lbl
+          text: !lambda |-
+            auto now = id(ha_time).now();
+            if (!now.is_valid()) return std::string("--:--");
+            char b[6];
+            snprintf(b, sizeof(b), "%02d:%02d", now.hour, now.minute);
+            return std::string(b);
+      - lvgl.label.update:
+          id: date_lbl
+          text: !lambda |-
+            auto now = id(ha_time).now();
+            if (!now.is_valid()) return std::string("");
+            static const char* D[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+            static const char* M[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+            char b[40];
+            snprintf(b, sizeof(b), "%s, %s %d", D[now.day_of_week - 1], M[now.month - 1], now.day_of_month);
+            return std::string(b);
+  - id: voice_state_idle
+    then:
+      - lvgl.button.update: { id: vbtn, bg_color: 0x18202E, border_color: 0x2A3A55 }
+      - lvgl.label.update: { id: vlbl, text: "READY", text_color: 0x7A8CA5 }
+  - id: voice_state_listening
+    then:
+      - lvgl.button.update: { id: vbtn, bg_color: 0x0E3A46, border_color: 0x4FE3FF }
+      - lvgl.label.update: { id: vlbl, text: "LISTENING", text_color: 0x4FE3FF }
+  - id: voice_state_thinking
+    then:
+      - lvgl.button.update: { id: vbtn, bg_color: 0x241A3E, border_color: 0xB197FF }
+      - lvgl.label.update: { id: vlbl, text: "THINKING", text_color: 0xB197FF }
+  - id: voice_state_speaking
+    then:
+      - lvgl.button.update: { id: vbtn, bg_color: 0x3A2A10, border_color: 0xFFB020 }
+      - lvgl.label.update: { id: vlbl, text: "SPEAKING", text_color: 0xFFB020 }
+  - id: va_chip_press
+    mode: restart
+    then:
+      - if:
+          condition:
+            voice_assistant.is_running:
+          then:
+            - voice_assistant.stop:
+            - script.execute: voice_state_idle
+          else:
+            - micro_wake_word.stop:
+            - voice_assistant.start:
+  # ── Car-door timer: open car door + garage lights for 5 min, auto-close
+  #    at zero; every press while running doubles the remaining time. ──
+  - id: car_timer_press
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(cd7_running) && id(cd7_remaining_s) > 0;"
+          then:
+            - lambda: |-
+                const int max_s = 99*60 + 59;   // display cap 99:59
+                int s = id(cd7_remaining_s) * 2;
+                if (s > max_s) s = max_s;
+                id(cd7_remaining_s) = s;
+          else:
+            - lambda: |-
+                id(cd7_running) = true;
+                id(cd7_remaining_s) = 300;
+            - homeassistant.service:
+                service: switch.turn_on
+                data:
+                  entity_id: ${garage_lights}
+            # contact ON = door CLOSED (inverted); only pulse the opener if closed
+            - if:
+                condition:
+                  binary_sensor.is_on: car_door_contact
+                then:
+                  - homeassistant.service:
+                      service: switch.toggle
+                      data:
+                        entity_id: switch.upper_garage_car_door
+      - script.execute: cd7_publish
+      - script.execute: refresh_car_timed_btn
+  - id: car_timer_finish
+    mode: restart
+    then:
+      - lambda: |-
+          id(cd7_running) = false;
+          id(cd7_remaining_s) = 0;
+      # contact OFF = door OPEN; only pulse the opener if it is still open
+      - if:
+          condition:
+            binary_sensor.is_off: car_door_contact
+          then:
+            - homeassistant.service:
+                service: switch.toggle
+                data:
+                  entity_id: switch.upper_garage_car_door
+      - homeassistant.service:
+          service: switch.turn_off
+          data:
+            entity_id: ${garage_lights}
+      - script.execute: cd7_publish
+      - script.execute: refresh_car_timed_btn
+  - id: cd7_publish
+    then:
+      - binary_sensor.template.publish:
+          id: garage_timer_active_pub
+          state: !lambda "return id(cd7_running) && id(cd7_remaining_s) > 0;"
+      - text_sensor.template.publish:
+          id: garage_timer_mmss_pub
+          state: !lambda |-
+            int s = id(cd7_remaining_s);
+            int mm = s / 60;
+            int ss = s % 60;
+            if (mm > 99) mm = 99;
+            char buf[5];
+            snprintf(buf, sizeof(buf), "%02d%02d", mm, ss);
+            return std::string(buf);
+  - id: refresh_car_timed_btn
+    then:
+      - lvgl.button.update:
+          id: btn1
+          bg_color: !lambda |-
+            bool act = id(cd7_running) && id(cd7_remaining_s) > 0;
+            return act ? lv_color_hex(0xFFB020) : lv_color_hex(0x34D399);
+      - lvgl.label.update:
+          id: lbl1
+          text: !lambda |-
+            if (!(id(cd7_running) && id(cd7_remaining_s) > 0))
+              return std::string("CAR DOOR - 5 MIN TIMER");
+            int s = id(cd7_remaining_s);
+            char buf[48];
+            snprintf(buf, sizeof(buf), "CAR CLOSES IN %d:%02d - TAP = X2", s / 60, s % 60);
+            return std::string(buf);
+  - id: wled_slider_select
+    parameters:
+      tgt: int
+    then:
+      - lambda: |-
+          id(slider_target) = tgt;
+          float b = NAN;
+          switch (tgt) {
+            case 1: b = id(w1_bri).state; break;
+            case 2: b = id(w2_bri).state; break;
+            case 3: b = id(w3_bri).state; break;
+            case 4: b = id(w4_bri).state; break;
+            case 5: b = id(w5_bri).state; break;
+            case 6: b = id(w6_bri).state; break;
+            case 7: b = id(w7_bri).state; break;
+            case 8: b = id(w8_bri).state; break;
+            case 9: b = id(e11_bri).state; break;
+            case 10: b = id(e12_bri).state; break;
+          }
+          int pct = isnan(b) ? 0 : (int) lround(b / 255.0 * 100.0);
+          if (pct > 100) pct = 100;
+          id(pending_brightness_pct) = pct;
+      - lvgl.slider.update:
+          id: bright_slider
+          value: !lambda 'return (float) id(pending_brightness_pct);'
+      - script.execute: refresh_slider_label
+  - id: refresh_slider_label
+    then:
+      - lvgl.label.update:
+          id: slider_pct_lbl
+          text: !lambda |-
+            const char* n = "";
+            switch (id(slider_target)) {
+            case 1: n = "GLED"; break;
+            case 2: n = "SR2"; break;
+            case 3: n = "UPPER"; break;
+            case 4: n = "GYVER"; break;
+            case 5: n = "PILL"; break;
+            case 6: n = "QFW-V"; break;
+            case 7: n = "CLOSET"; break;
+            case 8: n = "OFFICE"; break;
+            case 9: n = "QUIN"; break;
+            case 10: n = "DOM"; break;
+            }
+            char b[24];
+            if (id(pending_brightness_pct) == 0)
+              snprintf(b, sizeof(b), "%s%sOFF", n, id(slider_target) ? " " : "");
+            else
+              snprintf(b, sizeof(b), "%s%s%d%%", n, id(slider_target) ? " " : "", id(pending_brightness_pct));
+            return std::string(b);
+  - id: wled_slider_send
+    then:
+      - if:
+          condition:
+            lambda: 'return id(pending_brightness_pct) > 0;'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: !lambda |-
+                    int t = id(slider_target);
+                    if (t == 1) return std::string("${w1}");
+                    if (t == 2) return std::string("${w2}");
+                    if (t == 3) return std::string("${w3}");
+                    if (t == 4) return std::string("${w4}");
+                    if (t == 5) return std::string("${w5}");
+                    if (t == 6) return std::string("${w6}");
+                    if (t == 7) return std::string("${w7}");
+                    if (t == 8) return std::string("${w8}");
+                    if (t == 9) return std::string("${e11}");
+                    if (t == 10) return std::string("${e12}");
+                    return std::string("");
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+          else:
+            - homeassistant.service:
+                service: light.turn_off
+                data:
+                  entity_id: !lambda |-
+                    int t = id(slider_target);
+                    if (t == 1) return std::string("${w1}");
+                    if (t == 2) return std::string("${w2}");
+                    if (t == 3) return std::string("${w3}");
+                    if (t == 4) return std::string("${w4}");
+                    if (t == 5) return std::string("${w5}");
+                    if (t == 6) return std::string("${w6}");
+                    if (t == 7) return std::string("${w7}");
+                    if (t == 8) return std::string("${w8}");
+                    if (t == 9) return std::string("${e11}");
+                    if (t == 10) return std::string("${e12}");
+                    return std::string("");
+  - id: toggle_dimmer_select
+    parameters:
+      idx: int
+    then:
+      - lambda: 'id(slider_target) = 0;'
+      - script.execute: refresh_slider_label
+      - lambda: |-
+          if      (idx == 2)  id(t2_sel) = !id(t2_sel);
+          else if (idx == 3)  id(t3_sel) = !id(t3_sel);
+          else if (idx == 4)  id(t4_sel) = !id(t4_sel);
+          else if (idx == 5)  id(t5_sel) = !id(t5_sel);
+          else if (idx == 6)  id(t6_sel) = !id(t6_sel);
+          else if (idx == 8)  id(t8_sel) = !id(t8_sel);
+      - script.execute: refresh_all_button_styles
+  - id: group_brightness_send
+    then:
+      - if:
+          condition:
+            lambda: "return id(pending_brightness_pct) == 0;"
+          then:
+            - if:
+                condition:
+                  lambda: "return id(t2_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: ${e2}
+            - if:
+                condition:
+                  lambda: "return id(t3_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: ${e3}
+            - if:
+                condition:
+                  lambda: "return id(t4_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: ${e4}
+            - if:
+                condition:
+                  lambda: "return id(t5_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: ${e5}
+            - if:
+                condition:
+                  lambda: "return id(t6_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: ${e6}
+            - if:
+                condition:
+                  lambda: "return id(t8_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: ${e8}
+          else:
+            - if:
+                condition:
+                  lambda: "return id(t2_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: ${e2}
+                        brightness_pct: !lambda "return id(pending_brightness_pct);"
+            - if:
+                condition:
+                  lambda: "return id(t3_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: ${e3}
+                        brightness_pct: !lambda "return id(pending_brightness_pct);"
+            - if:
+                condition:
+                  lambda: "return id(t4_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: ${e4}
+                        brightness_pct: !lambda "return id(pending_brightness_pct);"
+            - if:
+                condition:
+                  lambda: "return id(t5_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: ${e5}
+                        brightness_pct: !lambda "return id(pending_brightness_pct);"
+            - if:
+                condition:
+                  lambda: "return id(t6_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: ${e6}
+                        brightness_pct: !lambda "return id(pending_brightness_pct);"
+            - if:
+                condition:
+                  lambda: "return id(t8_sel);"
+                then:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: ${e8}
+                        brightness_pct: !lambda "return id(pending_brightness_pct);"
+  - id: toggle_e9
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${e9}
+  - id: toggle_e10
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${e10}
+  - id: toggle_e11
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${e11}
+  - id: toggle_e12
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${e12}
+  - id: toggle_e14
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${e14}
+  - id: toggle_outside
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${e15}
+  - id: toggle_garage_lights
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: ${garage_lights}
+  - id: toggle_laundry
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${laundry_lights}
+  - id: toggle_w4
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w4}
+  - id: toggle_w5
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w5}
+  - id: toggle_w6
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w6}
+  - id: toggle_w7
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w7}
+  - id: toggle_w8
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w8}
+  - id: toggle_w1
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w1}
+      - lambda: |-
+          id(w1_on) = !id(w1_on);
+      - script.execute: refresh_w1_ui
+  - id: toggle_w2
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w2}
+      - lambda: |-
+          id(w2_on) = !id(w2_on);
+      - script.execute: refresh_w2_ui
+  - id: toggle_w3
+    then:
+      - homeassistant.service:
+          service: light.toggle
+          data:
+            entity_id: ${w3}
+      - lambda: |-
+          id(w3_on) = !id(w3_on);
+      - script.execute: refresh_w3_ui
+  - id: refresh_btn2_style
+    then:
+      - lvgl.button.update:
+          id: btn2
+          bg_color: !lambda |-
+            bool on = (id(e2_state).state == "on");
+            return on ? lv_color_hex(0x5B7CFF) : lv_color_hex(0x141F3A);
+          border_width: !lambda |-
+            return id(t2_sel) ? 6 : 0;
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: lbl2
+          text_color: !lambda |-
+            bool on = (id(e2_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn3_style
+    then:
+      - lvgl.button.update:
+          id: btn3
+          bg_color: !lambda |-
+            bool on = (id(e3_state).state == "on");
+            return on ? lv_color_hex(0x5B7CFF) : lv_color_hex(0x141F3A);
+          border_width: !lambda |-
+            return id(t3_sel) ? 6 : 0;
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: lbl3
+          text_color: !lambda |-
+            bool on = (id(e3_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn4_style
+    then:
+      - lvgl.button.update:
+          id: btn4
+          bg_color: !lambda |-
+            bool on = (id(e4_state).state == "on");
+            return on ? lv_color_hex(0xFFCC66) : lv_color_hex(0x3A2A10);
+          border_width: !lambda |-
+            return id(t4_sel) ? 6 : 0;
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: lbl4
+          text_color: !lambda |-
+            bool on = (id(e4_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn5_style
+    then:
+      - lvgl.button.update:
+          id: btn5
+          bg_color: !lambda |-
+            bool on = (id(e5_state).state == "on");
+            return on ? lv_color_hex(0x5B7CFF) : lv_color_hex(0x141F3A);
+          border_width: !lambda |-
+            return id(t5_sel) ? 6 : 0;
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: lbl5
+          text_color: !lambda |-
+            bool on = (id(e5_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn6_style
+    then:
+      - lvgl.button.update:
+          id: btn6
+          bg_color: !lambda |-
+            bool on = (id(e6_state).state == "on");
+            return on ? lv_color_hex(0xB197FF) : lv_color_hex(0x241A3A);
+          border_width: !lambda |-
+            return id(t6_sel) ? 6 : 0;
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: lbl6
+          text_color: !lambda |-
+            bool on = (id(e6_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn8_style
+    then:
+      - lvgl.button.update:
+          id: btn8
+          bg_color: !lambda |-
+            bool on = (id(e8_state).state == "on");
+            return on ? lv_color_hex(0x67E8F9) : lv_color_hex(0x12313A);
+          border_width: !lambda |-
+            return id(t8_sel) ? 6 : 0;
+          border_color: 0xFFFFFF
+      - lvgl.label.update:
+          id: lbl8
+          text_color: !lambda |-
+            bool on = (id(e8_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn9_style
+    then:
+      - lvgl.button.update:
+          id: btn9
+          bg_color: !lambda |-
+            bool on = (id(e9_state).state == "on");
+            return on ? lv_color_hex(0x5B7CFF) : lv_color_hex(0x141F3A);
+      - lvgl.label.update:
+          id: lbl9
+          text_color: !lambda |-
+            bool on = (id(e9_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn10_style
+    then:
+      - lvgl.button.update:
+          id: btn10
+          bg_color: !lambda |-
+            bool on = (id(e10_state).state == "on");
+            return on ? lv_color_hex(0x5B7CFF) : lv_color_hex(0x141F3A);
+      - lvgl.label.update:
+          id: lbl10
+          text_color: !lambda |-
+            bool on = (id(e10_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_btn11_style
+    then:
+      - lvgl.button.update:
+          id: btn11
+          bg_color: !lambda |-
+            bool on = (id(e11_state).state == "on");
+            return on ? lv_color_hex(0x5B7CFF) : lv_color_hex(0x141F3A);
+      - lvgl.label.update:
+          id: lbl11
+          text_color: !lambda |-
+            bool on = (id(e11_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  # DOM (domraem) is sometimes unavailable — grey instead of a stuck "off" look
+  - id: refresh_btn12_style
+    then:
+      - lvgl.button.update:
+          id: btn12
+          bg_color: !lambda |-
+            const std::string &s = id(e12_state).state;
+            if (s != "on" && s != "off") return lv_color_hex(0x2A2E35);
+            return (s == "on") ? lv_color_hex(0xF9A8D4) : lv_color_hex(0x3A1429);
+      - lvgl.label.update:
+          id: lbl12
+          text_color: !lambda |-
+            const std::string &s = id(e12_state).state;
+            if (s != "on" && s != "off") return lv_color_hex(0x667788);
+            return (s == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  # DRV (driveway) can also be unavailable — same grey handling
+  - id: refresh_btn13_style
+    then:
+      - lvgl.button.update:
+          id: btn13
+          bg_color: !lambda |-
+            const std::string &s = id(e14_state).state;
+            if (s != "on" && s != "off") return lv_color_hex(0x2A2E35);
+            return (s == "on") ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: lbl13
+          text_color: !lambda |-
+            const std::string &s = id(e14_state).state;
+            if (s != "on" && s != "off") return lv_color_hex(0x667788);
+            return (s == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_garage_ui
+    then:
+      - lvgl.button.update:
+          id: btn7
+          bg_color: !lambda |-
+            return id(garage_door).state ? lv_color_hex(0x3A1414) : lv_color_hex(0x34D399);
+      - lvgl.label.update:
+          id: garage_lbl
+          text: !lambda |-
+            return id(garage_door).state ? std::string("LOWER\nOPEN") : std::string("LOWER\nSHUT");
+          text_color: !lambda |-
+            return id(garage_door).state ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x000000);
+  # NOTE: upper garage contacts are INVERTED: ON = door CLOSED, OFF = OPEN.
+  # Grey "?" until the first HA state arrives.
+  - id: refresh_car_door_ui
+    then:
+      - lvgl.button.update:
+          id: car_btn
+          bg_color: !lambda |-
+            if (!id(car_door_contact).has_state()) return lv_color_hex(0x2A2E35);
+            return id(car_door_contact).state ? lv_color_hex(0x34D399) : lv_color_hex(0x3A1414);
+      - lvgl.label.update:
+          id: car_lbl
+          text: !lambda |-
+            if (!id(car_door_contact).has_state()) return std::string("CAR: ?");
+            return id(car_door_contact).state ? std::string("CAR: CLOSED") : std::string("CAR: OPEN");
+          text_color: !lambda |-
+            if (!id(car_door_contact).has_state()) return lv_color_hex(0x99A6B2);
+            return id(car_door_contact).state ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_truck_door_ui
+    then:
+      - lvgl.button.update:
+          id: truck_btn
+          bg_color: !lambda |-
+            if (!id(truck_door_contact).has_state()) return lv_color_hex(0x2A2E35);
+            return id(truck_door_contact).state ? lv_color_hex(0x34D399) : lv_color_hex(0x3A1414);
+      - lvgl.label.update:
+          id: truck_lbl
+          text: !lambda |-
+            if (!id(truck_door_contact).has_state()) return std::string("TRUCK: ?");
+            return id(truck_door_contact).state ? std::string("TRUCK: CLOSED") : std::string("TRUCK: OPEN");
+          text_color: !lambda |-
+            if (!id(truck_door_contact).has_state()) return lv_color_hex(0x99A6B2);
+            return id(truck_door_contact).state ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: car_door_press
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return (millis() - id(car_last_ms)) < 900;"
+          then:
+            - lambda: "id(car_last_ms) = 0;"
+            - homeassistant.service:
+                service: switch.toggle
+                data:
+                  entity_id: switch.upper_garage_car_door
+            - lvgl.label.update:
+                id: car_lbl
+                text: "CAR: SENT"
+            - delay: 1500ms
+            - script.execute: refresh_car_door_ui
+          else:
+            - lambda: "id(car_last_ms) = millis();"
+            - lvgl.label.update:
+                id: car_lbl
+                text: "TAP AGAIN"
+            - delay: 1200ms
+            - script.execute: refresh_car_door_ui
+  - id: truck_door_press
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return (millis() - id(truck_last_ms)) < 900;"
+          then:
+            - lambda: "id(truck_last_ms) = 0;"
+            - homeassistant.service:
+                service: switch.toggle
+                data:
+                  entity_id: switch.upper_garage_truck_door
+            - lvgl.label.update:
+                id: truck_lbl
+                text: "TRUCK: SENT"
+            - delay: 1500ms
+            - script.execute: refresh_truck_door_ui
+          else:
+            - lambda: "id(truck_last_ms) = millis();"
+            - lvgl.label.update:
+                id: truck_lbl
+                text: "TAP AGAIN"
+            - delay: 1200ms
+            - script.execute: refresh_truck_door_ui
+  - id: refresh_outside_ui
+    then:
+      - lvgl.button.update:
+          id: obtn1
+          bg_color: !lambda |-
+            bool on = (id(e15_state).state == "on");
+            return on ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: olbl1
+          text_color: !lambda |-
+            bool on = (id(e15_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_garage_lights_ui
+    then:
+      - lvgl.button.update:
+          id: obtn2
+          bg_color: !lambda |-
+            bool on = (id(garage_lights_state).state == "on");
+            return on ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: olbl2
+          text_color: !lambda |-
+            bool on = (id(garage_lights_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_laundry_ui
+    then:
+      - lvgl.button.update:
+          id: obtn3
+          bg_color: !lambda |-
+            bool on = (id(laundry_state).state == "on");
+            return on ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: olbl3
+          text_color: !lambda |-
+            bool on = (id(laundry_state).state == "on");
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_wbtn4_style
+    then:
+      - lvgl.button.update:
+          id: wbtn4
+          bg_color: !lambda |-
+            const std::string &st = id(w4_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x2A2E35);
+            return (st == "on") ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl4
+          text_color: !lambda |-
+            const std::string &st = id(w4_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x667788);
+            return (st == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_wbtn5_style
+    then:
+      - lvgl.button.update:
+          id: wbtn5
+          bg_color: !lambda |-
+            const std::string &st = id(w5_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x2A2E35);
+            return (st == "on") ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl5
+          text_color: !lambda |-
+            const std::string &st = id(w5_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x667788);
+            return (st == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_wbtn6_style
+    then:
+      - lvgl.button.update:
+          id: wbtn6
+          bg_color: !lambda |-
+            const std::string &st = id(w6_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x2A2E35);
+            return (st == "on") ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl6
+          text_color: !lambda |-
+            const std::string &st = id(w6_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x667788);
+            return (st == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_wbtn7_style
+    then:
+      - lvgl.button.update:
+          id: wbtn7
+          bg_color: !lambda |-
+            const std::string &st = id(w7_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x2A2E35);
+            return (st == "on") ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl7
+          text_color: !lambda |-
+            const std::string &st = id(w7_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x667788);
+            return (st == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_wbtn8_style
+    then:
+      - lvgl.button.update:
+          id: wbtn8
+          bg_color: !lambda |-
+            const std::string &st = id(w8_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x2A2E35);
+            return (st == "on") ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl8
+          text_color: !lambda |-
+            const std::string &st = id(w8_state).state;
+            if (st != "on" && st != "off") return lv_color_hex(0x667788);
+            return (st == "on") ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_w1_ui
+    then:
+      - lvgl.button.update:
+          id: wbtn1
+          bg_color: !lambda |-
+            bool on = id(w1_on);
+            return on ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl1
+          text_color: !lambda |-
+            bool on = id(w1_on);
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_w2_ui
+    then:
+      - lvgl.button.update:
+          id: wbtn2
+          bg_color: !lambda |-
+            bool on = id(w2_on);
+            return on ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl2
+          text_color: !lambda |-
+            bool on = id(w2_on);
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_w3_ui
+    then:
+      - lvgl.button.update:
+          id: wbtn3
+          bg_color: !lambda |-
+            bool on = id(w3_on);
+            return on ? lv_color_hex(0x34D399) : lv_color_hex(0x0E2A1B);
+      - lvgl.label.update:
+          id: wlbl3
+          text_color: !lambda |-
+            bool on = id(w3_on);
+            return on ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+  - id: refresh_all_button_styles
+    then:
+      - script.execute: refresh_car_timed_btn
+      - script.execute: refresh_btn2_style
+      - script.execute: refresh_btn3_style
+      - script.execute: refresh_btn4_style
+      - script.execute: refresh_btn5_style
+      - script.execute: refresh_btn6_style
+      - script.execute: refresh_btn8_style
+      - script.execute: refresh_btn9_style
+      - script.execute: refresh_btn10_style
+      - script.execute: refresh_btn11_style
+      - script.execute: refresh_btn12_style
+      - script.execute: refresh_btn13_style
+      - script.execute: refresh_garage_ui
+      - script.execute: refresh_car_door_ui
+      - script.execute: refresh_truck_door_ui
+      - script.execute: refresh_outside_ui
+      - script.execute: refresh_garage_lights_ui
+      - script.execute: refresh_laundry_ui
+      - script.execute: refresh_w1_ui
+      - script.execute: refresh_w2_ui
+      - script.execute: refresh_w3_ui
+      - script.execute: refresh_wbtn4_style
+      - script.execute: refresh_wbtn5_style
+      - script.execute: refresh_wbtn6_style
+      - script.execute: refresh_wbtn7_style
+      - script.execute: refresh_wbtn8_style
+
+# =========================
+# UI (LVGL) — Portrait 600x1024
+# =========================
+lvgl:
+  displays:
+    - tft_display
+  rotation: 90
+  touchscreens:
+    - touchscreen_id: my_touchscreen
+      long_press_time: 2s
+  update_interval: never
+  on_ready:
+    then:
+      - script.execute: refresh_all_button_styles
+      - script.execute: refresh_clock
+  pages:
+    - id: page_dimmer
+      widgets:
+        - obj:
+            x: 0
+            y: 0
+            width: 600
+            height: 1024
+            bg_color: 0x0B0F14
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            bg_opa: 100%
+        # ── Header: live clock + date, voice chip (tap = talk) ──
+        - obj:
+            id: header_card
+            x: 20
+            y: 8
+            width: 560
+            height: 96
+            radius: 16
+            bg_color: 0x121926
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            border_width: 1
+            border_color: 0x22304A
+            pad_all: 0
+            scrollable: false
+            clickable: false
+            widgets:
+              - label:
+                  id: clock_lbl
+                  x: 18
+                  y: 8
+                  text: "--:--"
+                  text_font: font_clock
+                  text_color: 0xF2F6FC
+              - label:
+                  id: date_lbl
+                  x: 21
+                  y: 68
+                  text: ""
+                  text_font: font_date
+                  text_color: 0x7A8CA5
+              - label:
+                  id: va_resp_lbl
+                  x: 196
+                  y: 40
+                  width: 168
+                  text: ""
+                  text_font: font_date
+                  text_color: 0x9FB4CC
+                  long_mode: scroll_circular
+        - button:
+            id: vbtn
+            x: 400
+            y: 20
+            width: 164
+            height: 72
+            radius: 36
+            bg_color: 0x18202E
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            border_width: 1
+            border_color: 0x2A3A55
+            on_press:
+              - script.execute: va_chip_press
+            widgets:
+              - label:
+                  id: vlbl
+                  text: "READY"
+                  text_font: font_chip
+                  text_color: 0x7A8CA5
+                  align: center
+        # Row 1: CAR DOOR TIMED-OPEN — 5 min car door + garage lights,
+        # auto-close at zero, each press while running doubles the time.
+        # Published Garage Timer Active/MMSS feed the 64x64 matrix displays.
+        - button:
+            id: btn1
+            x: 20
+            y: 112
+            width: 560
+            height: 78
+            radius: 14
+            bg_color: 0x34D399
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            # Tap = start 5-min timer / double remaining. Hold 2s = cancel:
+            # timer stops, garage lights off, car door closed.
+            on_press:
+              - lambda: 'id(cd7_btn_long) = false;'
+            on_long_press:
+              - lambda: 'id(cd7_btn_long) = true;'
+              - script.execute: car_timer_finish
+            on_release:
+              - if:
+                  condition:
+                    lambda: 'return !id(cd7_btn_long);'
+                  then:
+                    - script.execute: car_timer_press
+            widgets:
+              - label:
+                  id: lbl1
+                  text: "CAR DOOR - 5 MIN TIMER"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 2
+        - button:
+            id: btn2
+            x: 20
+            y: 370
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x5B7CFF
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute:
+                  id: toggle_dimmer_select
+                  idx: 2
+            widgets:
+              - label:
+                  id: lbl2
+                  text: "${e2_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        - button:
+            id: btn9
+            x: 310
+            y: 370
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x5B7CFF
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute: toggle_e9
+            widgets:
+              - label:
+                  id: lbl9
+                  text: "${e9_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 3
+        - button:
+            id: btn3
+            x: 20
+            y: 456
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x5B7CFF
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute:
+                  id: toggle_dimmer_select
+                  idx: 3
+            widgets:
+              - label:
+                  id: lbl3
+                  text: "${e3_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 3 RIGHT: living-room shared split (VAL/QUIN/DOM)
+        - button:
+            id: btn10
+            x: 310
+            y: 456
+            width: 270
+            height: 78
+            radius: 16
+            bg_color: 0x5B7CFF
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute: toggle_e10
+            widgets:
+              - label:
+                  id: lbl10
+                  text: "${e10_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 4: GARAGE DOORS (double-tap to operate, color = door position)
+        - button:
+            id: car_btn
+            x: 20
+            y: 198
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x34D399
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute: car_door_press
+            widgets:
+              - label:
+                  id: car_lbl
+                  text: "CAR: ?"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        - button:
+            id: truck_btn
+            x: 310
+            y: 198
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x34D399
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute: truck_door_press
+            widgets:
+              - label:
+                  id: truck_lbl
+                  text: "TRUCK: ?"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 5
+        - button:
+            id: btn5
+            x: 20
+            y: 542
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x5B7CFF
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute:
+                  id: toggle_dimmer_select
+                  idx: 5
+            widgets:
+              - label:
+                  id: lbl5
+                  text: "${e5_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        - button:
+            id: btn6
+            x: 310
+            y: 542
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0xB197FF
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute:
+                  id: toggle_dimmer_select
+                  idx: 6
+            widgets:
+              - label:
+                  id: lbl6
+                  text: "${e6_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 6
+        - button:
+            id: btn4
+            x: 20
+            y: 628
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0xFFCC66
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute:
+                  id: toggle_dimmer_select
+                  idx: 4
+            widgets:
+              - label:
+                  id: lbl4
+                  text: "${e4_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 6 RIGHT: garage lights — own full button
+        - button:
+            id: obtn2
+            x: 20
+            y: 284
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x34D399
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute: toggle_garage_lights
+            widgets:
+              - label:
+                  id: olbl2
+                  text: "GARAGE\nLIGHTS"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 7
+        - button:
+            id: btn8
+            x: 20
+            y: 714
+            width: 560
+            height: 78
+            radius: 14
+            bg_color: 0x67E8F9
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute:
+                  id: toggle_dimmer_select
+                  idx: 8
+            widgets:
+              - label:
+                  id: lbl8
+                  text: "${e8_name}"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # Row 7 RIGHT: outside pots / driveway / lower-garage indicator split
+        - obj:
+            id: outside_panel
+            x: 310
+            y: 628
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x000000
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+            clickable: false
+            widgets:
+              - button:
+                  id: obtn1
+                  x: 0
+                  y: 0
+                  width: 90
+                  height: 78
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  radius: 12
+                  on_press:
+                    - script.execute: toggle_outside
+                  widgets:
+                    - label:
+                        id: olbl1
+                        text: "OUT"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: btn13
+                  x: 90
+                  y: 0
+                  width: 90
+                  height: 78
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  radius: 12
+                  on_press:
+                    - script.execute: toggle_e14
+                  widgets:
+                    - label:
+                        id: lbl13
+                        text: "DRV"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: btn7
+                  x: 180
+                  y: 0
+                  width: 90
+                  height: 78
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  radius: 12
+                  on_press:
+                    - script.execute: refresh_garage_ui
+                  widgets:
+                    - label:
+                        id: garage_lbl
+                        text: "LOWER\n?"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+        # Row 8 LEFT: laundry lights — own full button
+        - button:
+            id: obtn3
+            x: 310
+            y: 284
+            width: 270
+            height: 78
+            radius: 14
+            bg_color: 0x34D399
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            on_press:
+              - script.execute: toggle_laundry
+            widgets:
+              - label:
+                  id: olbl3
+                  text: "LAUNDRY\nLIGHTS"
+                  text_font: font_btn
+                  text_color: 0x000000
+                  align: center
+        # ── LED-strip zone: everything below the divider is WLED/LED units ──
+        - obj:
+            x: 20
+            y: 884
+            width: 560
+            height: 2
+            radius: 1
+            bg_color: 0x3A4656
+            border_width: 0
+            clickable: false
+        - obj:
+            id: wled_panel
+            x: 20
+            y: 892
+            width: 560
+            height: 126
+            bg_color: 0x000000
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+            widgets:
+              - button:
+                  id: btn11
+                  x: 0
+                  y: 0
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_e11
+                    - script.execute: { id: wled_slider_select, tgt: 9 }
+                  widgets:
+                    - label:
+                        id: lbl11
+                        text: "QUIN"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: btn12
+                  x: 113
+                  y: 0
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_e12
+                    - script.execute: { id: wled_slider_select, tgt: 10 }
+                  widgets:
+                    - label:
+                        id: lbl12
+                        text: "DOM"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn1
+                  x: 226
+                  y: 0
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w1
+                    - script.execute: { id: wled_slider_select, tgt: 1 }
+                  widgets:
+                    - label:
+                        id: wlbl1
+                        text: "GLED"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn2
+                  x: 339
+                  y: 0
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w2
+                    - script.execute: { id: wled_slider_select, tgt: 2 }
+                  widgets:
+                    - label:
+                        id: wlbl2
+                        text: "SR2"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn3
+                  x: 452
+                  y: 0
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w3
+                    - script.execute: { id: wled_slider_select, tgt: 3 }
+                  widgets:
+                    - label:
+                        id: wlbl3
+                        text: "UPPER"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn4
+                  x: 0
+                  y: 66
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w4
+                    - script.execute: { id: wled_slider_select, tgt: 4 }
+                  widgets:
+                    - label:
+                        id: wlbl4
+                        text: "GYVER"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn5
+                  x: 113
+                  y: 66
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w5
+                    - script.execute: { id: wled_slider_select, tgt: 5 }
+                  widgets:
+                    - label:
+                        id: wlbl5
+                        text: "PILL"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn6
+                  x: 226
+                  y: 66
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w6
+                    - script.execute: { id: wled_slider_select, tgt: 6 }
+                  widgets:
+                    - label:
+                        id: wlbl6
+                        text: "QFW-V"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn7
+                  x: 339
+                  y: 66
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w7
+                    - script.execute: { id: wled_slider_select, tgt: 7 }
+                  widgets:
+                    - label:
+                        id: wlbl7
+                        text: "CLOSET"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+              - button:
+                  id: wbtn8
+                  x: 452
+                  y: 66
+                  width: 108
+                  height: 58
+                  radius: 12
+                  bg_color: 0x34D399
+                  bg_grad_color: 0x0A0E14
+                  bg_grad_dir: VER
+                  on_press:
+                    - script.execute: toggle_w8
+                    - script.execute: { id: wled_slider_select, tgt: 8 }
+                  widgets:
+                    - label:
+                        id: wlbl8
+                        text: "OFFICE"
+                        text_font: font_btn_small
+                        text_color: 0x000000
+                        align: center
+        # Bottom slider
+        - slider:
+            id: bright_slider
+            x: 20
+            y: 798
+            width: 560
+            height: 76
+            radius: 20
+            min_value: 0
+            max_value: 100
+            value: 50
+            bg_color: 0x131A24
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            border_width: 1
+            border_color: 0x22304A
+            indicator:
+              bg_color: 0x7A4A00
+              bg_grad_color: 0xFFD98A
+              bg_grad_dir: HOR
+              radius: 18
+            knob:
+              bg_color: 0xE8EEF6
+              bg_grad_color: 0x9FB4CC
+              bg_grad_dir: VER
+              radius: 40
+              border_width: 2
+              border_color: 0x2A3A55
+              pad_all: 6
+            on_value:
+              then:
+                - lambda: |-
+                    int v = (int) x;
+                    if (v <= 10) v = 0;
+                    id(pending_brightness_pct) = v;
+                - script.execute: refresh_slider_label
+            on_release:
+              then:
+                - if:
+                    condition:
+                      lambda: 'return id(slider_target) == 0;'
+                    then:
+                      - script.execute: group_brightness_send
+                    else:
+                      - script.execute: wled_slider_send
+        - label:
+            id: slider_pct_lbl
+            x: 275
+            y: 824
+            text: "50%"
+            text_font: font_btn
+            text_color: 0xF2F6FC
+            clickable: false
+
+dashboard_import:
+  package_import_url: github://gbroeckling/esphome-devices/voice7exp/voice7exp.yaml@main
+  import_full_config: true
+

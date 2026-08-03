@@ -1,0 +1,1011 @@
+substitutions:
+  weather_entity: "weather.forecast_home"
+  indoor_temp_entity: "sensor.office_temperature"
+  alarm_entity: "alarm_control_panel.alarmo"
+  # Upper garage contacts are INVERTED: ON = door CLOSED, OFF = OPEN
+  car_door_entity: "binary_sensor.0xa4c13857b6c49921_contact"
+  truck_door_entity: "binary_sensor.0xa4c13827776ddf1d_contact"
+  ha_cpu_entity: "sensor.home_assistant_core_cpu_percent"
+  ha_mem_entity: "sensor.home_assistant_core_memory_percent"
+  # sensor.home_assistant_version is dead -> use the update entity's attribute
+  ha_update_entity: "update.home_assistant_core_update"
+  e1: "light.inside_entry"
+  e1_name: "Inside Entry"
+  e2: "light.kitchen_east"
+  e2_name: "Kitchen East"
+  e3: "light.kitchen_valance_west"
+  e3_name: "Valance West"
+  e4: "light.poker_pots"
+  e4_name: "Poker Pots"
+  e5: "light.valance_far_west"
+  e5_name: "Valance Far W"
+  e6: "light.pots_main_north"
+  e6_name: "Pots Main N"
+  e7: "light.pots_north_stair"
+  e7_name: "Pots N Stair"
+  e8: "light.pots_fireplace"
+  e8_name: "Pots Fireplace"
+  p1_area: "sensor.bermuda_your_phone_area"
+  p1_name: "Phone Area"
+  p2_area: "device_tracker.bermuda_your_phone_bermuda_tracker"
+  p2_name: "Phone Tracker"
+  # old _area_last_seen entity no longer exists -> use person.pixel presence
+  p3_area: "person.pixel"
+  p3_name: "Pixel"
+  p4_area: "sensor.fsc_bp103b_area"
+  p4_name: "Wallet Area"
+  p5_area: "device_tracker.fsc_bp103b_bermuda_tracker"
+  p5_name: "Wallet Tracker"
+  p6_area: "sensor.fsc_bp103b_area_last_seen"
+  p6_name: "Wallet Seen"
+
+esphome:
+  name: paperdink_merlot
+  friendly_name: Paperd.ink Merlot
+  on_boot:
+    priority: -10
+    then:
+      - output.turn_on: epd_enable
+      - script.execute: { id: request_refresh, force: true }
+      - delay: 8s
+      - script.execute: { id: request_refresh, force: true }
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+captive_portal:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "paperdink-fallback"
+    password: "changeme12345"
+
+api:
+  on_client_connected:
+    then:
+      - lambda: 'id(ha_api_connected) = true;'
+  on_client_disconnected:
+    then:
+      - lambda: 'id(ha_api_connected) = false;'
+
+ota:
+  - platform: esphome
+    password: "changeme"
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+globals:
+  - id: current_view
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: ha_api_connected
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: refresh_in_progress
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: epaper_update_started
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: pending_refresh
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: pending_force
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: queued_force
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: last_refresh_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+
+interval:
+  - interval: 2min
+    then:
+      - lambda: 'id(current_view) = (id(current_view) + 1) % 7;'
+      - script.execute: { id: request_refresh, force: false }
+
+output:
+  - platform: gpio
+    id: epd_enable
+    pin: { number: GPIO12, inverted: true }
+  - platform: gpio
+    id: batt_enable
+    pin: { number: GPIO25, inverted: true }
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+# Aligned with the XIAO e-ink: Google-hosted Inter, no local font files needed.
+# font_small carries updates/NEXT-event lines -> extended glyph set.
+font:
+  - file: "gfonts://Inter@400"
+    id: font_tiny
+    size: 12
+    glyphs: "!\"%()+=,-_.:°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz@~&>/'#"
+  - file: "gfonts://Inter@400"
+    id: font_small
+    size: 16
+    glyphs: "!\"%()+=,-_.:°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz@~&>/'#"
+  - file: "gfonts://Inter@700"
+    id: font_med
+    size: 22
+    glyphs: "!\"%()+=,-_.:°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz@~&>/'#"
+  - file: "gfonts://Inter@700"
+    id: font_big
+    size: 32
+  - file: "gfonts://Inter@700"
+    id: font_huge
+    size: 48
+  - file: "gfonts://Inter@700"
+    id: font_time
+    size: 128
+    glyphs: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', '-']
+
+sensor:
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "paperd.ink WiFi RSSI"
+    update_interval: 60s
+  - platform: uptime
+    id: uptime_s
+    name: "paperd.ink Uptime"
+    update_interval: 60s
+  - platform: adc
+    id: batt_voltage
+    name: "paperd.ink Battery Voltage"
+    pin: GPIO39
+    attenuation: 11db
+    update_interval: never
+    filters:
+      - multiply: 2.0
+  - platform: homeassistant
+    id: weather_temp
+    entity_id: ${weather_entity}
+    attribute: temperature
+  - platform: homeassistant
+    id: weather_humidity
+    entity_id: ${weather_entity}
+    attribute: humidity
+  - platform: homeassistant
+    id: indoor_temp
+    entity_id: ${indoor_temp_entity}
+  - platform: homeassistant
+    id: lights_on_count
+    entity_id: sensor.lights_on_count
+  - platform: homeassistant
+    id: ha_cpu
+    entity_id: ${ha_cpu_entity}
+  - platform: homeassistant
+    id: ha_mem
+    entity_id: ${ha_mem_entity}
+  - platform: homeassistant
+    id: updates_count
+    entity_id: sensor.eink_updates_count
+  - platform: homeassistant
+    id: e1_bri
+    entity_id: ${e1}
+    attribute: brightness
+  - platform: homeassistant
+    id: e2_bri
+    entity_id: ${e2}
+    attribute: brightness
+  - platform: homeassistant
+    id: e3_bri
+    entity_id: ${e3}
+    attribute: brightness
+  - platform: homeassistant
+    id: e4_bri
+    entity_id: ${e4}
+    attribute: brightness
+  - platform: homeassistant
+    id: e5_bri
+    entity_id: ${e5}
+    attribute: brightness
+  - platform: homeassistant
+    id: e6_bri
+    entity_id: ${e6}
+    attribute: brightness
+  - platform: homeassistant
+    id: e7_bri
+    entity_id: ${e7}
+    attribute: brightness
+  - platform: homeassistant
+    id: e8_bri
+    entity_id: ${e8}
+    attribute: brightness
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: ip_addr
+      name: "paperd.ink IP"
+  - platform: homeassistant
+    id: cal1_title
+    entity_id: calendar.person_a
+    attribute: message
+  - platform: homeassistant
+    id: cal1_start
+    entity_id: calendar.person_a
+    attribute: start_time
+  - platform: homeassistant
+    id: cal2_title
+    entity_id: calendar.person_b
+    attribute: message
+  - platform: homeassistant
+    id: cal2_start
+    entity_id: calendar.person_b
+    attribute: start_time
+  - platform: homeassistant
+    id: cal3_title
+    entity_id: calendar.holidays_in_canada
+    attribute: message
+  - platform: homeassistant
+    id: cal3_start
+    entity_id: calendar.holidays_in_canada
+    attribute: start_time
+  - platform: homeassistant
+    id: cal4_title
+    entity_id: calendar.shared
+    attribute: message
+  - platform: homeassistant
+    id: cal4_start
+    entity_id: calendar.shared
+    attribute: start_time
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: ${weather_entity}
+  - platform: homeassistant
+    id: weather_fc1
+    entity_id: sensor.eink_weather_fc1
+  - platform: homeassistant
+    id: weather_fc2
+    entity_id: sensor.eink_weather_fc2
+  - platform: homeassistant
+    id: weather_fc3
+    entity_id: sensor.eink_weather_fc3
+  - platform: homeassistant
+    id: weather_fc4
+    entity_id: sensor.eink_weather_fc4
+  - platform: homeassistant
+    id: weather_fc5
+    entity_id: sensor.eink_weather_fc5
+  - platform: homeassistant
+    id: weather_fc6
+    entity_id: sensor.eink_weather_fc6
+  - platform: homeassistant
+    id: weather_fc7
+    entity_id: sensor.eink_weather_fc7
+  - platform: homeassistant
+    id: alarm_state
+    entity_id: ${alarm_entity}
+  - platform: homeassistant
+    id: ha_core_version
+    entity_id: ${ha_update_entity}
+    attribute: installed_version
+  # Updates (6 slots)
+  - platform: homeassistant
+    id: upd1
+    entity_id: sensor.eink_update_1
+  - platform: homeassistant
+    id: upd2
+    entity_id: sensor.eink_update_2
+  - platform: homeassistant
+    id: upd3
+    entity_id: sensor.eink_update_3
+  - platform: homeassistant
+    id: upd4
+    entity_id: sensor.eink_update_4
+  - platform: homeassistant
+    id: upd5
+    entity_id: sensor.eink_update_5
+  - platform: homeassistant
+    id: upd6
+    entity_id: sensor.eink_update_6
+  # Bermuda
+  - platform: homeassistant
+    id: p1_area_state
+    entity_id: ${p1_area}
+  - platform: homeassistant
+    id: p2_area_state
+    entity_id: ${p2_area}
+  - platform: homeassistant
+    id: p3_area_state
+    entity_id: ${p3_area}
+  - platform: homeassistant
+    id: p4_area_state
+    entity_id: ${p4_area}
+  - platform: homeassistant
+    id: p5_area_state
+    entity_id: ${p5_area}
+  - platform: homeassistant
+    id: p6_area_state
+    entity_id: ${p6_area}
+
+binary_sensor:
+  - platform: gpio
+    id: charging
+    name: "paperd.ink Charging"
+    pin: { number: GPIO36, mode: { input: true }, inverted: true }
+    filters: [ delayed_on: 50ms, delayed_off: 50ms ]
+  - platform: homeassistant
+    id: car_door
+    entity_id: ${car_door_entity}
+  - platform: homeassistant
+    id: truck_door
+    entity_id: ${truck_door_entity}
+  - platform: homeassistant
+    id: e1_on
+    entity_id: ${e1}
+  - platform: homeassistant
+    id: e2_on
+    entity_id: ${e2}
+  - platform: homeassistant
+    id: e3_on
+    entity_id: ${e3}
+  - platform: homeassistant
+    id: e4_on
+    entity_id: ${e4}
+  - platform: homeassistant
+    id: e5_on
+    entity_id: ${e5}
+  - platform: homeassistant
+    id: e6_on
+    entity_id: ${e6}
+  - platform: homeassistant
+    id: e7_on
+    entity_id: ${e7}
+  - platform: homeassistant
+    id: e8_on
+    entity_id: ${e8}
+  # Buttons
+  - platform: gpio
+    id: btn_next
+    name: "B1 Next"
+    pin: { number: GPIO14, mode: { input: true, pullup: true }, inverted: true }
+    filters: [ delayed_on: 30ms, delayed_off: 30ms ]
+    on_click:
+      - min_length: 30ms
+        max_length: 500ms
+        then:
+          - lambda: 'id(current_view) = (id(current_view) + 1) % 7;'
+          - script.execute: { id: request_refresh, force: true }
+      - min_length: 1s
+        max_length: 3s
+        then:
+          - script.execute: { id: request_refresh, force: true }
+  - platform: gpio
+    id: btn_light
+    name: "B2 Light"
+    pin: { number: GPIO27, mode: { input: true, pullup: true }, inverted: true }
+    filters: [ delayed_on: 30ms, delayed_off: 30ms ]
+    on_click:
+      - min_length: 30ms
+        max_length: 500ms
+        then:
+          - homeassistant.service:
+              service: light.toggle
+              data:
+                entity_id: ${e1}
+          - delay: 2s
+          - script.execute: { id: request_refresh, force: true }
+      - min_length: 1s
+        max_length: 3s
+        then:
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e1}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e2}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e3}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e4}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e5}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e6}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e7}
+          - homeassistant.service:
+              service: light.turn_off
+              data:
+                entity_id: ${e8}
+          - delay: 2s
+          - lambda: 'id(current_view) = 4;'
+          - script.execute: { id: request_refresh, force: true }
+  - platform: gpio
+    id: btn_cal
+    name: "B3 Calendar"
+    pin: { number: GPIO4, mode: { input: true, pullup: true }, inverted: true }
+    filters: [ delayed_on: 30ms, delayed_off: 30ms ]
+    on_click:
+      - min_length: 30ms
+        max_length: 500ms
+        then:
+          - lambda: 'id(current_view) = 0;'
+          - script.execute: { id: request_refresh, force: true }
+      - min_length: 1s
+        max_length: 3s
+        then:
+          - lambda: 'id(current_view) = 5;'
+          - script.execute: { id: request_refresh, force: true }
+  - platform: gpio
+    id: btn_weather
+    name: "B4 Weather"
+    pin: { number: GPIO2, mode: { input: true, pullup: true }, inverted: true }
+    filters: [ delayed_on: 30ms, delayed_off: 30ms ]
+    on_click:
+      - min_length: 30ms
+        max_length: 500ms
+        then:
+          - lambda: 'id(current_view) = 3;'
+          - script.execute: { id: request_refresh, force: true }
+      - min_length: 1s
+        max_length: 3s
+        then:
+          - lambda: 'id(current_view) = 4;'
+          - script.execute: { id: request_refresh, force: true }
+
+display:
+  - platform: waveshare_epaper
+    id: epaper
+    cs_pin: GPIO22
+    dc_pin: GPIO15
+    busy_pin: GPIO34
+    reset_pin: GPIO13
+    model: 4.20in-bV2-bwr
+    rotation: 0
+    update_interval: never
+    lambda: |-
+      const auto BLK = Color(0, 0, 0);
+      const auto WHT = Color(255, 255, 255);
+      const auto RED = Color(255, 0, 0);
+      it.fill(WHT);
+
+      auto trim = [](std::string s, size_t m) -> std::string {
+        if (s.size() <= m) return s;
+        return s.substr(0, m > 1 ? m - 1 : 0) + "~";
+      };
+
+      auto bar = [&](int x, int y, int w, int h, int pct, Color fc) {
+        it.rectangle(x, y, w, h, BLK);
+        int fw = (w - 2) * pct / 100;
+        if (fw > w - 2) fw = w - 2;
+        if (fw > 0) it.filled_rectangle(x + 1, y + 1, fw, h - 2, fc);
+      };
+
+      auto batt_icon = [&](int x, int y) {
+        float v = id(batt_voltage).state;
+        it.rectangle(x, y, 22, 11, BLK);
+        it.filled_rectangle(x + 22, y + 3, 3, 5, BLK);
+        if (!isnan(v)) {
+          int pct = (int)((v - 3.0f) / 1.2f * 100.0f);
+          if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+          int fw = 18 * pct / 100;
+          if (fw > 0) it.filled_rectangle(x + 2, y + 2, fw, 7, pct < 20 ? RED : BLK);
+        }
+        if (id(charging).state) it.print(x + 27, y - 1, id(font_tiny), RED, "CHG");
+      };
+
+      auto wifi_icon = [&](int x, int y) {
+        float r = id(wifi_rssi).state;
+        int bars = r > -50 ? 4 : r > -60 ? 3 : r > -70 ? 2 : r > -80 ? 1 : 0;
+        for (int i = 0; i < 4; i++) {
+          int bh = 3 + i * 3;
+          if (i < bars) it.filled_rectangle(x + i * 5, y + 12 - bh, 3, bh, BLK);
+          else it.rectangle(x + i * 5, y + 12 - bh, 3, bh, BLK);
+        }
+      };
+
+      auto header_bar = [&](int y, const char* text) {
+        it.filled_rectangle(0, y, 400, 22, RED);
+        it.print(6, y + 3, id(font_small), WHT, text);
+      };
+
+      auto draw_sun = [&](int sx, int sy, int sr) {
+        it.filled_circle(sx, sy, sr, RED);
+        int r1 = sr + 3, r2 = sr + 8;
+        int d1 = (int)(r1 * 0.707f), d2 = (int)(r2 * 0.707f);
+        it.line(sx + r1, sy, sx + r2, sy, RED); it.line(sx - r1, sy, sx - r2, sy, RED);
+        it.line(sx, sy - r1, sx, sy - r2, RED); it.line(sx, sy + r1, sx, sy + r2, RED);
+        it.line(sx + d1, sy - d1, sx + d2, sy - d2, RED); it.line(sx - d1, sy - d1, sx - d2, sy - d2, RED);
+        it.line(sx - d1, sy + d1, sx - d2, sy + d2, RED); it.line(sx + d1, sy + d1, sx + d2, sy + d2, RED);
+      };
+
+      auto draw_cloud = [&](int cx, int cy, int sz, Color c) {
+        int r = sz / 3;
+        it.filled_circle(cx - r, cy, r, c); it.filled_circle(cx, cy - r / 2, (int)(r * 1.4f), c);
+        it.filled_circle(cx + r, cy, (int)(r * 0.9f), c);
+        it.filled_rectangle(cx - r - r / 2, cy, r * 3, r, c);
+      };
+
+      auto weather_icon = [&](int cx, int cy, int sz, const std::string &cond) {
+        if (cond == "sunny") { draw_sun(cx, cy, sz / 4); }
+        else if (cond == "clear-night") {
+          it.filled_circle(cx, cy, sz / 3, BLK);
+          it.filled_circle(cx + sz / 5, cy - sz / 6, sz / 3, WHT);
+        } else if (cond == "cloudy") { draw_cloud(cx, cy, sz, BLK); }
+        else if (cond == "partlycloudy") {
+          draw_sun(cx - sz / 5, cy - sz / 5, sz / 6);
+          draw_cloud(cx + sz / 8, cy + sz / 8, (int)(sz * 0.65f), BLK);
+        } else if (cond == "rainy" || cond == "pouring") {
+          draw_cloud(cx, cy - sz / 5, (int)(sz * 0.6f), BLK);
+          for (int i = -1; i <= 1; i++)
+            it.line(cx + i * sz / 4, cy + sz / 4, cx + i * sz / 4 - 3, cy + sz / 4 + sz / 5, BLK);
+        } else if (cond == "snowy") {
+          draw_cloud(cx, cy - sz / 5, (int)(sz * 0.6f), BLK);
+          it.filled_circle(cx - sz / 4, cy + sz / 4, 3, RED);
+          it.filled_circle(cx, cy + sz / 3, 3, RED);
+          it.filled_circle(cx + sz / 4, cy + sz / 4, 3, RED);
+          it.filled_circle(cx - sz / 8, cy + sz / 3 + 4, 2, RED);
+          it.filled_circle(cx + sz / 8, cy + sz / 4 + 6, 2, RED);
+        } else if (cond == "snowy-rainy") {
+          draw_cloud(cx, cy - sz / 5, (int)(sz * 0.6f), BLK);
+          it.line(cx - sz / 4, cy + sz / 4, cx - sz / 4 - 2, cy + sz / 3, BLK);
+          it.filled_circle(cx, cy + sz / 3, 3, RED);
+          it.line(cx + sz / 4, cy + sz / 4, cx + sz / 4 - 2, cy + sz / 3, BLK);
+        } else if (cond == "lightning-rainy" || cond == "lightning") {
+          draw_cloud(cx, cy - sz / 5, (int)(sz * 0.6f), BLK);
+          it.filled_triangle(cx - 2, cy + sz / 6, cx + 6, cy + sz / 7, cx + 1, cy + sz / 3, RED);
+          it.filled_triangle(cx - 4, cy + sz / 4, cx + 4, cy + sz / 4 - 2, cx - 1, cy + (int)(sz * 0.45f), RED);
+        } else if (cond == "fog") {
+          for (int i = 0; i < 5; i++)
+            it.line(cx - sz / 2 + i * 3, cy - sz / 3 + i * sz / 6, cx + sz / 2 - i * 3, cy - sz / 3 + i * sz / 6, BLK);
+        } else if (cond == "windy" || cond == "windy-variant") {
+          for (int i = 0; i < 3; i++) {
+            int ly = cy - sz / 4 + i * sz / 4;
+            int lw = sz / 2 + (2 - i) * 5;
+            it.line(cx - sz / 3, ly, cx - sz / 3 + lw, ly, BLK);
+            it.filled_triangle(cx - sz / 3 + lw, ly, cx - sz / 3 + lw - 5, ly - 3, cx - sz / 3 + lw - 5, ly + 3, BLK);
+          }
+        } else if (cond == "hail") {
+          draw_cloud(cx, cy - sz / 5, (int)(sz * 0.6f), BLK);
+          it.filled_circle(cx - sz / 5, cy + sz / 4, 4, RED);
+          it.filled_circle(cx + sz / 5, cy + sz / 4, 4, RED);
+          it.filled_circle(cx, cy + sz / 3, 4, RED);
+        } else { draw_cloud(cx, cy, sz, BLK); }
+      };
+
+      auto bulb_icon = [&](int x, int y, bool on) {
+        if (on) {
+          it.filled_circle(x + 7, y + 7, 7, RED);
+          it.line(x - 1, y + 3, x - 4, y, RED); it.line(x + 15, y + 3, x + 18, y, RED);
+          it.line(x - 1, y + 11, x - 4, y + 14, RED); it.line(x + 15, y + 11, x + 18, y + 14, RED);
+        } else { it.circle(x + 7, y + 7, 7, BLK); }
+        it.filled_rectangle(x + 3, y + 14, 8, 3, BLK);
+        it.filled_rectangle(x + 4, y + 17, 6, 2, BLK);
+      };
+
+      auto thermo_icon = [&](int x, int y, Color c) {
+        it.filled_circle(x + 3, y + 20, 4, c);
+        it.rectangle(x + 1, y, 5, 17, c);
+        it.filled_rectangle(x + 2, y + 7, 3, 10, c);
+      };
+
+      auto person_icon = [&](int x, int y, Color c) {
+        it.filled_circle(x + 8, y + 6, 5, c);
+        it.filled_triangle(x + 1, y + 24, x + 15, y + 24, x + 8, y + 12, c);
+      };
+
+      // Calendar events: merged across calendars, sorted by start (matches XIAO)
+      auto bad = [](const std::string &s) -> bool {
+        return s.empty() || s == "unknown" || s == "unavailable" || s == "None";
+      };
+      struct CalEvt { const char* src; std::string title; std::string start; };
+      CalEvt cal[4]; int cc = 0;
+      auto add_c = [&](const char* src, const std::string &t, const std::string &s) {
+        if (bad(t)) return;
+        cal[cc].src = src; cal[cc].title = t;
+        cal[cc].start = bad(s) ? std::string("9999") : s;
+        cc++;
+      };
+      add_c("PERSON A", id(cal1_title).has_state() ? id(cal1_title).state : std::string(""), id(cal1_start).has_state() ? id(cal1_start).state : std::string(""));
+      add_c("PERSON B", id(cal2_title).has_state() ? id(cal2_title).state : std::string(""), id(cal2_start).has_state() ? id(cal2_start).state : std::string(""));
+      add_c("HOLIDAY", id(cal3_title).has_state() ? id(cal3_title).state : std::string(""), id(cal3_start).has_state() ? id(cal3_start).state : std::string(""));
+      add_c("SHARED", id(cal4_title).has_state() ? id(cal4_title).state : std::string(""), id(cal4_start).has_state() ? id(cal4_start).state : std::string(""));
+      for (int i = 0; i < cc - 1; i++)
+        for (int j = 0; j < cc - i - 1; j++)
+          if (cal[j].start > cal[j + 1].start) { CalEvt t = cal[j]; cal[j] = cal[j + 1]; cal[j + 1] = t; }
+
+      // "2026-08-01 10:00:00" / "2026-08-01" -> "08-01 10:00" / "08-01" (matches XIAO)
+      auto fmt_t = [](const std::string &s) -> std::string {
+        if (s == "9999") return std::string("");
+        if (s.size() >= 10 && s.size() < 16) return s.substr(5, 5);
+        if (s.size() < 16) return s;
+        size_t p = s.find('T'); if (p == std::string::npos) p = s.find(' ');
+        if (p == std::string::npos) return s.substr(5, 5);
+        return s.substr(5, 5) + " " + s.substr(p + 1, 5);
+      };
+
+      // True time (the old +10-minute "lookahead" hack is gone)
+      auto now = id(ha_time).now();
+      int dh = 0, dm = 0; bool time_ok = now.is_valid();
+      if (time_ok) { dh = now.hour; dm = now.minute; }
+      const char* dow[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+      const char* mon[] = {"JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"};
+
+      // Footer helper (same NEXT format as the XIAO)
+      auto footer = [&](int y) {
+        it.line(0, y, 399, y, RED);
+        if (cc > 0) {
+          std::string nxt = "NEXT: " + trim(cal[0].title, 20) + " @ " + fmt_t(cal[0].start);
+          it.print(6, y + 4, id(font_small), BLK, trim(nxt, 38).c_str());
+        } else {
+          it.print(6, y + 4, id(font_small), BLK, "No upcoming events");
+        }
+        batt_icon(330, y + 6);
+        wifi_icon(370, y + 6);
+      };
+
+      int v = id(current_view);
+
+      // ═══════════════════════════════════════════════
+      if (v == 0) {
+        // ══════ CALENDAR ══════
+        it.filled_rectangle(0, 0, 72, 260, RED);
+        if (time_ok) {
+          char daynum[4]; snprintf(daynum, sizeof(daynum), "%d", now.day_of_month);
+          it.printf(36, 45, id(font_huge), WHT, TextAlign::CENTER, "%s", daynum);
+          it.print(36, 80, id(font_med), WHT, TextAlign::TOP_CENTER, mon[now.month - 1]);
+          it.print(36, 108, id(font_small), WHT, TextAlign::TOP_CENTER, dow[now.day_of_week - 1]);
+          char clk[8]; snprintf(clk, sizeof(clk), "%02d:%02d", dh, dm);
+          it.print(36, 140, id(font_small), WHT, TextAlign::TOP_CENTER, clk);
+        }
+        it.filled_circle(36, 170, 3, WHT); it.filled_circle(28, 180, 2, WHT);
+        it.filled_circle(44, 180, 2, WHT); it.filled_circle(36, 190, 3, WHT);
+
+        it.print(80, 4, id(font_med), RED, "Upcoming Events");
+        it.line(80, 26, 395, 26, RED);
+
+        if (cc == 0) {
+          it.print(80, 60, id(font_med), BLK, "No upcoming events");
+        } else {
+          int ey = 32;
+          for (int i = 0; i < cc; i++) {
+            it.filled_circle(88, ey + 10, 4, RED);
+            it.print(98, ey, id(font_small), BLK, trim(fmt_t(cal[i].start), 14).c_str());
+            it.print(210, ey, id(font_tiny), RED, cal[i].src);
+            it.print(98, ey + 17, id(font_med), BLK, trim(cal[i].title, 22).c_str());
+            if (i < cc - 1) it.line(85, ey + 46, 395, ey + 46, BLK);
+            ey += 52;
+          }
+        }
+        footer(260);
+
+      } else if (v == 1) {
+        // ══════ BIG CLOCK ══════
+        if (time_ok) {
+          char tbuf[8]; snprintf(tbuf, sizeof(tbuf), "%02d:%02d", dh, dm);
+          it.printf(200, 78, id(font_time), BLK, TextAlign::CENTER, "%s", tbuf);
+          it.filled_rectangle(40, 155, 320, 28, RED);
+          char dbuf[30]; snprintf(dbuf, sizeof(dbuf), "%s, %s %d, %d",
+            dow[now.day_of_week - 1], mon[now.month - 1], now.day_of_month, now.year);
+          it.print(200, 159, id(font_small), WHT, TextAlign::TOP_CENTER, dbuf);
+          std::string cond = id(weather_condition).has_state() ? id(weather_condition).state : std::string("");
+          if (!cond.empty()) {
+            weather_icon(55, 212, 40, cond);
+            char wbuf[30];
+            if (!isnan(id(weather_temp).state))
+              snprintf(wbuf, sizeof(wbuf), "%.1f°C  %s", id(weather_temp).state, cond.c_str());
+            else snprintf(wbuf, sizeof(wbuf), "%s", cond.c_str());
+            it.print(90, 200, id(font_med), BLK, wbuf);
+          }
+        } else {
+          it.printf(200, 78, id(font_time), BLK, TextAlign::CENTER, "--:--");
+        }
+        footer(240);
+
+      } else if (v == 2) {
+        // ══════ HOME STATUS ══════
+        header_bar(0, "HOME STATUS");
+        if (time_ok) { char h[8]; snprintf(h, sizeof(h), "%02d:%02d", dh, dm); it.print(390, 3, id(font_small), WHT, TextAlign::TOP_RIGHT, h); }
+
+        thermo_icon(8, 28, RED);
+        if (!isnan(id(indoor_temp).state)) it.printf(22, 30, id(font_med), BLK, "In: %.1f°C", id(indoor_temp).state);
+        else it.print(22, 30, id(font_med), BLK, "In: --");
+        thermo_icon(208, 28, BLK);
+        if (!isnan(id(weather_temp).state)) it.printf(222, 30, id(font_med), BLK, "Out: %.1f°C", id(weather_temp).state);
+        else it.print(222, 30, id(font_med), BLK, "Out: --");
+
+        std::string cond = id(weather_condition).has_state() ? id(weather_condition).state : std::string("");
+        if (!cond.empty()) { weather_icon(22, 68, 24, cond); it.printf(42, 60, id(font_small), BLK, "%s", cond.c_str()); }
+        if (!isnan(id(weather_humidity).state)) it.printf(222, 60, id(font_small), BLK, "Humidity: %.0f%%", id(weather_humidity).state);
+
+        it.line(0, 82, 399, 82, RED);
+
+        bulb_icon(8, 86, true);
+        if (!isnan(id(lights_on_count).state)) it.printf(30, 88, id(font_med), BLK, "Lights: %.0f on", id(lights_on_count).state);
+        else it.print(30, 88, id(font_med), BLK, "Lights: --");
+        // Upper garage contacts are INVERTED: ON = CLOSED, OFF = OPEN (same logic as XIAO)
+        bool car_open = id(car_door).has_state() && !id(car_door).state;
+        bool truck_open = id(truck_door).has_state() && !id(truck_door).state;
+        bool gar = car_open || truck_open;
+        std::string v_garage;
+        if (!id(car_door).has_state() && !id(truck_door).has_state()) v_garage = "--";
+        else if (car_open && truck_open) v_garage = "Both Open";
+        else if (car_open) v_garage = "Car Open";
+        else if (truck_open) v_garage = "Truck Open";
+        else v_garage = "Closed";
+        it.printf(220, 88, id(font_med), gar ? RED : BLK, "Garage: %s", v_garage.c_str());
+
+        if (id(alarm_state).has_state() && !id(alarm_state).state.empty()) {
+          std::string as = id(alarm_state).state;
+          bool alert = (as == "triggered"); bool armed = (as.find("armed") != std::string::npos);
+          it.filled_circle(14, 122, 5, (alert || armed) ? RED : BLK);
+          if (!armed && !alert) it.filled_circle(14, 122, 3, WHT);
+          if (as == "armed_home") as = "Armed Home"; else if (as == "armed_away") as = "Armed Away";
+          else if (as == "armed_night") as = "Armed Night"; else if (as == "disarmed") as = "Disarmed";
+          else if (as == "triggered") as = "TRIGGERED!"; else if (as == "arming") as = "Arming...";
+          it.printf(24, 114, id(font_med), alert ? RED : BLK, "Alarm: %s", as.c_str());
+        }
+
+        header_bar(138, "HA SERVER");
+
+        it.print(6, 164, id(font_small), BLK, "CPU");
+        int cpu_pct = !isnan(id(ha_cpu).state) ? (int)id(ha_cpu).state : 0;
+        bar(40, 165, 120, 12, cpu_pct, cpu_pct > 80 ? RED : BLK);
+        it.printf(166, 164, id(font_small), BLK, "%d%%", cpu_pct);
+        it.print(210, 164, id(font_small), BLK, "Mem");
+        int mem_pct = !isnan(id(ha_mem).state) ? (int)id(ha_mem).state : 0;
+        bar(250, 165, 120, 12, mem_pct, mem_pct > 80 ? RED : BLK);
+        it.printf(376, 164, id(font_small), BLK, "%d%%", mem_pct);
+
+        if (id(ha_core_version).has_state() && !id(ha_core_version).state.empty())
+          it.printf(6, 182, id(font_small), BLK, "Core: %s", id(ha_core_version).state.c_str());
+        // Updates count badge
+        if (!isnan(id(updates_count).state) && id(updates_count).state > 0) {
+          it.filled_circle(370, 188, 10, RED);
+          it.printf(370, 188, id(font_small), WHT, TextAlign::CENTER, "%.0f", id(updates_count).state);
+          it.print(260, 182, id(font_small), RED, "Updates!");
+        }
+
+        header_bar(200, "DEVICE");
+        it.printf(6, 224, id(font_small), BLK, "API: %s", id(ha_api_connected) ? "OK" : "Down");
+        if (id(ip_addr).has_state()) it.printf(150, 224, id(font_small), BLK, "IP: %s", id(ip_addr).state.c_str());
+        batt_icon(6, 244); wifi_icon(60, 244);
+        if (!isnan(id(batt_voltage).state)) it.printf(90, 244, id(font_tiny), BLK, "%.2fV", id(batt_voltage).state);
+        it.printf(150, 244, id(font_small), BLK, "Up: %.0fmin", id(uptime_s).state / 60.0);
+        footer(262);
+
+      } else if (v == 3) {
+        // ══════ WEATHER ══════
+        header_bar(0, "WEATHER FORECAST");
+        if (time_ok) { char h[8]; snprintf(h, sizeof(h), "%02d:%02d", dh, dm); it.print(390, 3, id(font_small), WHT, TextAlign::TOP_RIGHT, h); }
+
+        std::string cond = id(weather_condition).has_state() ? id(weather_condition).state : std::string("cloudy");
+        weather_icon(50, 55, 55, cond);
+        if (!isnan(id(weather_temp).state)) it.printf(110, 30, id(font_big), BLK, "%.1f°C", id(weather_temp).state);
+        else it.print(110, 30, id(font_big), BLK, "--°C");
+        std::string cd = cond; if (!cd.empty()) cd[0] = toupper(cd[0]);
+        it.printf(110, 62, id(font_small), BLK, "%s", cd.c_str());
+        if (!isnan(id(weather_humidity).state)) it.printf(110, 78, id(font_small), BLK, "Humidity: %.0f%%", id(weather_humidity).state);
+
+        it.filled_rectangle(0, 96, 400, 2, RED);
+        it.print(6, 100, id(font_small), RED, "7-DAY FORECAST");
+        int fy = 118;
+        auto fc_line = [&](const std::string &line) { if (!line.empty()) it.print(6, fy, id(font_small), BLK, trim(line, 48).c_str()); fy += 20; };
+        fc_line(id(weather_fc1).has_state() ? id(weather_fc1).state : std::string(""));
+        fc_line(id(weather_fc2).has_state() ? id(weather_fc2).state : std::string(""));
+        fc_line(id(weather_fc3).has_state() ? id(weather_fc3).state : std::string(""));
+        fc_line(id(weather_fc4).has_state() ? id(weather_fc4).state : std::string(""));
+        fc_line(id(weather_fc5).has_state() ? id(weather_fc5).state : std::string(""));
+        fc_line(id(weather_fc6).has_state() ? id(weather_fc6).state : std::string(""));
+        fc_line(id(weather_fc7).has_state() ? id(weather_fc7).state : std::string(""));
+        footer(262);
+
+      } else if (v == 4) {
+        // ══════ LIGHTS ══════
+        header_bar(0, "LIGHTS");
+        if (!isnan(id(lights_on_count).state)) it.printf(390, 3, id(font_small), WHT, TextAlign::TOP_RIGHT, "%.0f ON", id(lights_on_count).state);
+
+        const int y0 = 28, dy = 27;
+        auto draw_lt = [&](int row, const char* name, bool on, float bri) {
+          int y = y0 + row * dy;
+          bulb_icon(6, y, on);
+          it.printf(28, y + 2, id(font_small), BLK, "%s", name);
+          if (!on) { it.print(200, y + 2, id(font_small), BLK, "OFF"); }
+          else {
+            int pct = isnan(bri) ? -1 : (int)lroundf(bri / 255.0f * 100.0f);
+            if (pct >= 0) { bar(190, y + 4, 100, 10, pct, RED); it.printf(296, y + 2, id(font_tiny), RED, "%d%%", pct); }
+            else it.print(200, y + 2, id(font_small), RED, "ON");
+          }
+          if (row < 7) it.line(6, y + dy - 2, 394, y + dy - 2, row == 3 ? RED : BLK);
+        };
+        draw_lt(0, "${e1_name}", id(e1_on).state, id(e1_bri).state);
+        draw_lt(1, "${e2_name}", id(e2_on).state, id(e2_bri).state);
+        draw_lt(2, "${e3_name}", id(e3_on).state, id(e3_bri).state);
+        draw_lt(3, "${e4_name}", id(e4_on).state, id(e4_bri).state);
+        draw_lt(4, "${e5_name}", id(e5_on).state, id(e5_bri).state);
+        draw_lt(5, "${e6_name}", id(e6_on).state, id(e6_bri).state);
+        draw_lt(6, "${e7_name}", id(e7_on).state, id(e7_bri).state);
+        draw_lt(7, "${e8_name}", id(e8_on).state, id(e8_bri).state);
+
+        it.filled_rectangle(0, 248, 400, 18, RED);
+        it.print(6, 250, id(font_tiny), WHT, "B2: Toggle Entry");
+        it.print(200, 250, id(font_tiny), WHT, "B2 HOLD: All Lights OFF");
+        footer(268);
+
+      } else if (v == 5) {
+        // ══════ WHO'S HOME ══════
+        header_bar(0, "WHO'S HOME");
+        if (time_ok) { char h[8]; snprintf(h, sizeof(h), "%02d:%02d", dh, dm); it.print(390, 3, id(font_small), WHT, TextAlign::TOP_RIGHT, h); }
+
+        it.filled_rectangle(0, 24, 400, 20, RED);
+        person_icon(6, 25, WHT);
+        it.print(30, 26, id(font_small), WHT, "PERSON A");
+
+        auto draw_track = [&](int y, const char* label, const std::string &val) {
+          it.print(20, y, id(font_small), RED, label);
+          std::string v = val.empty() ? std::string("--") : val;
+          if (v.size() > 22) v = v.substr(0, 21) + "~";
+          it.print(160, y, id(font_med), BLK, v.c_str());
+        };
+        draw_track(48, "${p1_name}", id(p1_area_state).has_state() ? id(p1_area_state).state : std::string(""));
+        draw_track(72, "${p2_name}", id(p2_area_state).has_state() ? id(p2_area_state).state : std::string(""));
+        draw_track(96, "${p3_name}", id(p3_area_state).has_state() ? id(p3_area_state).state : std::string(""));
+
+        it.line(0, 120, 399, 120, BLK);
+        it.filled_rectangle(0, 124, 400, 20, RED);
+        it.filled_rectangle(8, 129, 14, 10, WHT); it.filled_circle(15, 134, 2, RED);
+        it.print(30, 126, id(font_small), WHT, "WALLET");
+
+        draw_track(148, "${p4_name}", id(p4_area_state).has_state() ? id(p4_area_state).state : std::string(""));
+        draw_track(172, "${p5_name}", id(p5_area_state).has_state() ? id(p5_area_state).state : std::string(""));
+        draw_track(196, "${p6_name}", id(p6_area_state).has_state() ? id(p6_area_state).state : std::string(""));
+
+        it.line(0, 222, 399, 222, RED);
+        it.print(6, 228, id(font_small), RED, "Quick Status:");
+        if (!isnan(id(indoor_temp).state)) it.printf(6, 246, id(font_small), BLK, "In: %.1f°C", id(indoor_temp).state);
+        if (!isnan(id(weather_temp).state)) it.printf(130, 246, id(font_small), BLK, "Out: %.1f°C", id(weather_temp).state);
+        if (!isnan(id(lights_on_count).state)) it.printf(270, 246, id(font_small), BLK, "Lights: %.0f", id(lights_on_count).state);
+        footer(264);
+
+      } else {
+        // ══════ UPDATES ══════
+        header_bar(0, "SYSTEM UPDATES");
+        if (time_ok) { char h[8]; snprintf(h, sizeof(h), "%02d:%02d", dh, dm); it.print(390, 3, id(font_small), WHT, TextAlign::TOP_RIGHT, h); }
+
+        int ucount = !isnan(id(updates_count).state) ? (int)id(updates_count).state : 0;
+
+        if (ucount == 0) {
+          // All up to date — draw checkmark
+          int cx = 200, cy = 100;
+          // Big circle
+          it.circle(cx, cy, 35, BLK);
+          it.circle(cx, cy, 34, BLK);
+          // Checkmark in center
+          it.line(cx - 15, cy, cx - 5, cy + 12, BLK);
+          it.line(cx - 16, cy, cx - 6, cy + 12, BLK);
+          it.line(cx - 5, cy + 12, cx + 18, cy - 12, BLK);
+          it.line(cx - 6, cy + 12, cx + 17, cy - 12, BLK);
+
+          it.print(200, 148, id(font_med), BLK, TextAlign::TOP_CENTER, "All Systems Up To Date");
+
+          if (id(ha_core_version).has_state() && !id(ha_core_version).state.empty())
+            it.printf(200, 180, id(font_small), BLK, TextAlign::TOP_CENTER, "Core: %s", id(ha_core_version).state.c_str());
+
+          // Decorative dots
+          it.filled_circle(160, 210, 3, RED);
+          it.filled_circle(200, 210, 3, RED);
+          it.filled_circle(240, 210, 3, RED);
+        } else {
+          // Updates available
+          // Big red count badge
+          it.filled_circle(55, 65, 28, RED);
+          it.printf(55, 65, id(font_huge), WHT, TextAlign::CENTER, "%d", ucount);
+          it.print(95, 45, id(font_big), BLK, "Updates");
+          it.print(95, 75, id(font_small), BLK, "available");
+
+          it.filled_rectangle(0, 100, 400, 2, RED);
+
+          // List updates
+          int uy = 108;
+          auto upd_line = [&](const std::string &line) {
+            if (line.empty()) return;
+            // Red arrow
+            it.filled_triangle(8, uy + 4, 8, uy + 12, 16, uy + 8, RED);
+            it.print(22, uy, id(font_small), BLK, trim(line, 44).c_str());
+            uy += 22;
+          };
+
+          upd_line(id(upd1).has_state() ? id(upd1).state : std::string(""));
+          upd_line(id(upd2).has_state() ? id(upd2).state : std::string(""));
+          upd_line(id(upd3).has_state() ? id(upd3).state : std::string(""));
+          upd_line(id(upd4).has_state() ? id(upd4).state : std::string(""));
+          upd_line(id(upd5).has_state() ? id(upd5).state : std::string(""));
+          upd_line(id(upd6).has_state() ? id(upd6).state : std::string(""));
+        }
+
+        footer(262);
+      }
+
+script:
+  - id: request_refresh
+    parameters:
+      force: bool
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(refresh_in_progress)) {
+            if (!id(epaper_update_started)) return;
+            id(pending_refresh) = true;
+            if (force) id(pending_force) = true;
+            return;
+          }
+          const uint32_t now_ms = millis();
+          const uint32_t min_gap = 1UL * 60UL * 1000UL;
+          if (!force) { if ((uint32_t)(now_ms - id(last_refresh_ms)) < min_gap) return; }
+      - script.execute: refresh_display
+
+  - id: refresh_display
+    mode: queued
+    then:
+      - lambda: |-
+          id(refresh_in_progress) = true;
+          id(epaper_update_started) = false;
+          id(last_refresh_ms) = millis();
+      - output.turn_on: batt_enable
+      - delay: 150ms
+      - component.update: batt_voltage
+      - output.turn_off: batt_enable
+      - output.turn_on: epd_enable
+      - delay: 250ms
+      - lambda: 'id(epaper_update_started) = true;'
+      - component.update: epaper
+      - lambda: |-
+          id(refresh_in_progress) = false;
+          id(epaper_update_started) = false;
+      - if:
+          condition:
+            lambda: 'return id(pending_refresh);'
+          then:
+            - lambda: |-
+                id(queued_force) = id(pending_force);
+                id(pending_refresh) = false;
+                id(pending_force) = false;
+                id(last_refresh_ms) = 0;
+            - if:
+                condition:
+                  lambda: 'return id(queued_force);'
+                then:
+                  - script.execute: { id: request_refresh, force: true }
+                else:
+                  - script.execute: { id: request_refresh, force: false }
+            - lambda: 'id(queued_force) = false;'
+
+dashboard_import:
+  package_import_url: github://gbroeckling/esphome-devices/paperd-calendar/paperd-calendar.yaml@main
+  import_full_config: true
+

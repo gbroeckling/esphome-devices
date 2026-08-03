@@ -1,0 +1,663 @@
+substitutions:
+  name: "countdown-rotary-garage"
+  friendly_name: "Countdown rotary for Garage"
+  # Home Assistant targets
+  laundry_light_1: "switch.quectel_matter_product_2"
+  laundry_light_2: "switch.quectel_matter_product_2"
+  garage_open_relay: "switch.prodino1_relay_1"
+  garage_close_relay: "switch.prodino1_relay_2"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2025.12.0
+  name_add_mac_suffix: false
+  on_boot:
+    priority: 600
+    then:
+      - script.execute: ui_update
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
+      CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+
+psram:
+  speed: 80MHz
+  mode: octal
+
+logger:
+  level: DEBUG
+
+mdns:
+  disabled: false
+# wifi fails on this device when BLE is enabled
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # WiFi hardening for weak-signal location (no functional changes):
+  power_save_mode: none
+  fast_connect: true
+  output_power: 20dB
+
+captive_portal:
+
+ota:
+  - platform: esphome
+
+api:
+  reboot_timeout: 0s
+  on_client_connected:
+    then:
+      - logger.log: "Connected to Home Assistant API"
+  on_client_disconnected:
+    then:
+      - logger.log: "Disconnected from Home Assistant API"
+
+external_components:
+  - source: github://sEbola76/Makerfabs
+    components: [ cst826 ]
+
+
+
+# Backlight
+output:
+  - platform: ledc
+    pin: GPIO38
+    id: backlight_output
+
+light:
+  - platform: monochromatic
+    name: "Backlight"
+    output: backlight_output
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+
+# Touch
+i2c:
+  - id: i2c_bus
+    sda: 17
+    scl: 18
+    scan: true
+    frequency: 400kHz
+
+touchscreen:
+  platform: cst826
+  id: touch
+  i2c_id: i2c_bus
+  skip_probe: true
+  update_interval: 25ms
+  on_touch:
+    - light.turn_on: display_backlight
+
+# Display (keep hardware wiring exactly)
+spi:
+  id: spi_bus
+  mosi_pin: GPIO0
+  clk_pin: GPIO46
+
+display:
+  - platform: st7701s
+    id: round_display
+    auto_clear_enabled: false
+    color_order: rgb
+    data_rate: 10MHz
+    spi_mode: MODE3
+    dimensions:
+      width: 480
+      height: 480
+    cs_pin: GPIO1
+    de_pin: GPIO2
+    hsync_pin: GPIO3
+    vsync_pin: GPIO42
+    pclk_pin: GPIO45
+    pclk_frequency: 12MHz
+    pclk_inverted: false
+    hsync_front_porch: 10
+    hsync_pulse_width: 8
+    hsync_back_porch: 50
+    vsync_front_porch: 10
+    vsync_pulse_width: 8
+    vsync_back_porch: 20
+    data_pins:
+      red:   [11, 15, 12, 16, 21]
+      green: [39, 7, 47, 8, 48, 9]
+      blue:  [4, 41, 5, 40, 6]
+    init_sequence:
+      - [0x01]
+      - delay 120ms
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10]
+      - [0xC0, 0x3B, 0x00]
+      - [0xC1, 0x0B, 0x02]
+      - [0xC2, 0x00, 0x02]
+      - [0xCC, 0x10]
+      - [0xCD, 0x08]
+      - [0xB0, 0x02, 0x13, 0x1B, 0x0D, 0x10, 0x05, 0x08, 0x07, 0x07, 0x24, 0x04, 0x11, 0x0E, 0x2C, 0x33, 0x1D]
+      - [0xB1, 0x05, 0x13, 0x1B, 0x0D, 0x11, 0x05, 0x08, 0x07, 0x07, 0x24, 0x04, 0x11, 0x0E, 0x2C, 0x33, 0x1D]
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x11]
+      - [0xB0, 0x5D]
+      - [0xB1, 0x43]
+      - [0xB2, 0x81]
+      - [0xB3, 0x80]
+      - [0xB5, 0x43]
+      - [0xB7, 0x85]
+      - [0xB8, 0x20]
+      - [0xC1, 0x78]
+      - [0xC2, 0x78]
+      - [0xD0, 0x88]
+      - [0xE0, 0x00, 0x00, 0x02]
+      - [0xE1, 0x03, 0xA0, 0x00, 0x00, 0x04, 0xA0, 0x00, 0x00, 0x00, 0x20, 0x20]
+      - [0xE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+      - [0xE3, 0x00, 0x00, 0x11, 0x00]
+      - [0xE4, 0x22, 0x00]
+      - [0xE5, 0x05, 0xEC, 0xA0, 0xA0, 0x07, 0xEE, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+      - [0xE6, 0x00, 0x00, 0x11, 0x00]
+      - [0xE7, 0x22, 0x00]
+      - [0xE8, 0x06, 0xED, 0xA0, 0xA0, 0x08, 0xEF, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+      - [0xEB, 0x00, 0x00, 0x40, 0x40, 0x00, 0x00, 0x00]
+      - [0xED, 0xFF, 0xFF, 0xFF, 0xBA, 0x0A, 0xBF, 0x45, 0xFF, 0xFF, 0x54, 0xFB, 0xA0, 0xAB, 0xFF, 0xFF, 0xFF]
+      - [0xEF, 0x10, 0x0D, 0x04, 0x08, 0x3F, 0x1F]
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x13]
+      - [0xEF, 0x08]
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x00]
+      - [0x36, 0x08]
+      - [0x3A, 0x60]
+      - [0x11]
+      - delay 100ms
+      - [0x29]
+      - delay 50ms
+
+# Rotary + published countdown (ONE sensor block)
+sensor:
+  - platform: rotary_encoder
+    id: encoder
+    name: "encoder"
+    pin_a: GPIO10
+    pin_b: GPIO13
+    resolution: 1
+    on_clockwise:
+      then:
+        - script.execute: { id: encoder_adjust, dir: 1 }
+    on_anticlockwise:
+      then:
+        - script.execute: { id: encoder_adjust, dir: -1 }
+  - platform: template
+    id: garage_departure_countdown_seconds
+    name: "Garage Departure Countdown Seconds"
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: never
+
+binary_sensor:
+  - platform: gpio
+    name: "Knob Button"
+    id: knob_button
+    internal: true
+    pin:
+      number: GPIO14
+      inverted: true
+    on_press:
+      then:
+        - light.turn_on: display_backlight
+        - script.execute: toggle_mode
+  - platform: template
+    id: garage_departure_countdown_active
+    name: "Garage Departure Countdown Active"
+
+text_sensor:
+  - platform: template
+    id: garage_departure_countdown_mmss
+    name: "Garage Departure Countdown MMSS"
+    update_interval: never
+  - platform: template
+    id: garage_departure_mode
+    name: "Garage Departure Mode"
+    update_interval: never
+
+font:
+  - file: "gfonts://Inter@800"
+    id: font_timer
+    size: 180
+  - file: "gfonts://Inter@800"
+    id: font_idle
+    size: 56
+
+# =========================
+# Globals
+# =========================
+globals:
+  - id: remaining_s
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: running
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: started_actions
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: color_idx
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: ui_mode_changed
+    type: bool
+    restore_value: no
+    initial_value: "true"
+  - id: last_mode
+    type: int
+    restore_value: no
+    initial_value: "0"   # 0 idle, 1 timer
+  # -------------------------------------------------------
+  # selected_mode — the mode chosen by the user via knob press.
+  # Cycles: 0 → 1 → 2 → 0 ...
+  #   0 = LIGHTS  (lights only, NO garage relay pulse)
+  #   1 = CAR     (lights + pulse relay 1 to open/close car-side door)
+  #   2 = TRUCK   (lights + pulse relay 2 to open/close truck-side door)
+  # This value is latched into active_mode when the timer starts.
+  # -------------------------------------------------------
+  - id: selected_mode
+    type: int
+    restore_value: no
+    initial_value: "0"
+  # -------------------------------------------------------
+  # active_mode — snapshot of selected_mode taken at timer start.
+  # Used for BOTH the start and finish relay pulses so that
+  # changing the knob mid-countdown doesn't switch which door
+  # gets pulsed. Mode 0 (LIGHTS) skips relay pulses entirely.
+  # -------------------------------------------------------
+  - id: active_mode
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+interval:
+  - interval: 1s
+    then:
+      - script.execute: tick_1s
+
+# =========================
+# Scripts
+# =========================
+script:
+  # -------------------------------------------------------
+  # pulse_relay_1 / pulse_relay_2
+  # Each pulses a relay on a remote PRODIno board for 1 second.
+  # Relay 1 = car-side garage door opener.
+  # Relay 2 = truck-side garage door opener.
+  # These are only called from start_pulse / finish_pulse,
+  # which guard against LIGHTS mode (no relay pulse needed).
+  # -------------------------------------------------------
+  - id: pulse_relay_1
+    mode: restart
+    then:
+      - homeassistant.service:
+          service: switch.turn_on
+          data:
+            entity_id: ${garage_open_relay}
+      - delay: 1s
+      - homeassistant.service:
+          service: switch.turn_off
+          data:
+            entity_id: ${garage_open_relay}
+  - id: pulse_relay_2
+    mode: restart
+    then:
+      - homeassistant.service:
+          service: switch.turn_on
+          data:
+            entity_id: ${garage_close_relay}
+      - delay: 1s
+      - homeassistant.service:
+          service: switch.turn_off
+          data:
+            entity_id: ${garage_close_relay}
+  # -------------------------------------------------------
+  # start_pulse — called when the countdown begins.
+  # Pulses the correct garage door relay based on active_mode.
+  #   Mode 0 (LIGHTS): no relay — just lights, no door action.
+  #   Mode 1 (CAR):    pulse relay 1 (car-side door).
+  #   Mode 2 (TRUCK):  pulse relay 2 (truck-side door).
+  # -------------------------------------------------------
+  - id: start_pulse
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(active_mode) == 1;"
+          then:
+            - script.execute: pulse_relay_1
+      - if:
+          condition:
+            lambda: "return id(active_mode) == 2;"
+          then:
+            - script.execute: pulse_relay_2
+      # Mode 0 (LIGHTS): intentionally does nothing here — no door to open.
+  # -------------------------------------------------------
+  # finish_pulse — called when the countdown reaches zero.
+  # Same relay logic as start_pulse (close the door that was opened).
+  #   Mode 0 (LIGHTS): no relay — lights are turned off separately.
+  #   Mode 1 (CAR):    pulse relay 1 (close car-side door).
+  #   Mode 2 (TRUCK):  pulse relay 2 (close truck-side door).
+  # -------------------------------------------------------
+  - id: finish_pulse
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(active_mode) == 1;"
+          then:
+            - script.execute: pulse_relay_1
+      - if:
+          condition:
+            lambda: "return id(active_mode) == 2;"
+          then:
+            - script.execute: pulse_relay_2
+      # Mode 0 (LIGHTS): intentionally does nothing here — no door to close.
+  # -------------------------------------------------------
+  # lights_on / lights_off — laundry/garage area lights.
+  # Called for ALL three modes (LIGHTS, CAR, TRUCK).
+  # -------------------------------------------------------
+  - id: lights_on
+    mode: restart
+    then:
+      - homeassistant.service:
+          service: switch.turn_on
+          data:
+            entity_id: ${laundry_light_1}
+      - homeassistant.service:
+          service: switch.turn_on
+          data:
+            entity_id: ${laundry_light_2}
+  - id: lights_off
+    mode: restart
+    then:
+      - homeassistant.service:
+          service: switch.turn_off
+          data:
+            entity_id: ${laundry_light_1}
+      - homeassistant.service:
+          service: switch.turn_off
+          data:
+            entity_id: ${laundry_light_2}
+  # -------------------------------------------------------
+  # toggle_mode — knob button press cycles through 3 modes:
+  #   LIGHTS (0) → CAR (1) → TRUCK (2) → LIGHTS (0) ...
+  # -------------------------------------------------------
+  - id: toggle_mode
+    mode: restart
+    then:
+      - lambda: |-
+          id(selected_mode) = (id(selected_mode) + 1) % 3;
+      - script.execute: ui_update
+  # -------------------------------------------------------
+  # start_if_needed — begins the countdown run.
+  # Latches selected_mode into active_mode so mid-run knob
+  # presses don't change which door gets pulsed.
+  # Turns on lights (all modes), then pulses relay (CAR/TRUCK only).
+  # -------------------------------------------------------
+  - id: start_if_needed
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return (id(remaining_s) > 0) && (!id(running));"
+          then:
+            - lambda: |-
+                id(running) = true;
+                id(ui_mode_changed) = (id(last_mode) != 1);
+                id(last_mode) = 1;
+            - script.execute: ui_update
+      - if:
+          condition:
+            lambda: "return id(running) && (!id(started_actions));"
+          then:
+            - lambda: |-
+                id(started_actions) = true;
+                id(active_mode) = id(selected_mode); // latch for this run
+            - script.execute: lights_on
+            - script.execute: start_pulse
+  # -------------------------------------------------------
+  # stop_and_reset — called when countdown hits zero or
+  # user dials back to zero. Fires finish actions (lights off,
+  # relay pulse for CAR/TRUCK), then resets all state.
+  # -------------------------------------------------------
+  - id: stop_and_reset
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(started_actions);"
+          then:
+            - script.execute: lights_off
+            - script.execute: finish_pulse
+      - lambda: |-
+          id(remaining_s) = 0;
+          id(running) = false;
+          id(started_actions) = false;
+          id(ui_mode_changed) = (id(last_mode) != 0);
+          id(last_mode) = 0;
+      - script.execute: ui_update
+  - id: encoder_adjust
+    mode: restart
+    parameters:
+      dir: int
+    then:
+      - light.turn_on: display_backlight
+      - lambda: |-
+          const int step = 30;
+          const int max_s = 99*60 + 59;
+          int s = id(remaining_s);
+          s += (dir > 0) ? step : -step;
+          if (s < 0) s = 0;
+          if (s > max_s) s = max_s;
+          id(remaining_s) = s;
+          id(color_idx) = (id(color_idx) + 1) % 9;
+          if (id(remaining_s) == 0) {
+            // if dialed down to 0 while running, end immediately
+          } else {
+            id(ui_mode_changed) = (id(last_mode) != 1);
+            id(last_mode) = 1;
+          }
+      - if:
+          condition:
+            lambda: "return id(remaining_s) == 0 && (id(running) || id(started_actions));"
+          then:
+            - script.execute: stop_and_reset
+          else:
+            - script.execute: start_if_needed
+            - script.execute: ui_update
+  - id: tick_1s
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(running) && id(remaining_s) > 0;"
+          then:
+            - lambda: |-
+                id(remaining_s) -= 1;
+                if (id(remaining_s) < 0) id(remaining_s) = 0;
+                id(color_idx) = (id(color_idx) + 1) % 9;
+            - script.execute: ui_update
+            - if:
+                condition:
+                  lambda: "return id(remaining_s) == 0;"
+                then:
+                  - script.execute: stop_and_reset
+  - id: ui_update
+    mode: restart
+    then:
+      # Publish state for HA / other ESPHome devices
+      - binary_sensor.template.publish:
+          id: garage_departure_countdown_active
+          state: !lambda "return (id(remaining_s) > 0);"
+      - sensor.template.publish:
+          id: garage_departure_countdown_seconds
+          state: !lambda "return (float) id(remaining_s);"
+      - text_sensor.template.publish:
+          id: garage_departure_countdown_mmss
+          state: !lambda |-
+            int s = id(remaining_s);
+            int mm = s / 60;
+            int ss = s % 60;
+            if (mm > 99) mm = 99;
+            char buf[5];
+            snprintf(buf, sizeof(buf), "%02d%02d", mm, ss);
+            return std::string(buf);
+      # Publish current mode name: LIGHTS / CAR / TRUCK
+      - text_sensor.template.publish:
+          id: garage_departure_mode
+          state: !lambda |-
+            if (id(selected_mode) == 0) return std::string("LIGHTS");
+            if (id(selected_mode) == 1) return std::string("CAR");
+            return std::string("TRUCK");
+      # Show/hide correct centered container
+      - if:
+          condition:
+            lambda: "return id(last_mode) == 0;"
+          then:
+            - lvgl.obj.update:
+                id: time_container
+                hidden: true
+            - lvgl.obj.update:
+                id: idle_container
+                hidden: false
+          else:
+            - lvgl.obj.update:
+                id: idle_container
+                hidden: true
+            - lvgl.obj.update:
+                id: time_container
+                hidden: false
+      # Idle text (green): shows current mode name
+      #   LIGHTS = lights only, no garage door
+      #   CAR    = lights + car-side door relay
+      #   TRUCK  = lights + truck-side door relay
+      - lvgl.label.update:
+          id: idle_label
+          text: !lambda |-
+            if (id(selected_mode) == 0) return std::string("LIGHTS\nDEPARTURE\nTIME");
+            if (id(selected_mode) == 1) return std::string("CAR\nDEPARTURE\nTIME");
+            return std::string("TRUCK\nDEPARTURE\nTIME");
+      - lvgl.obj.update:
+          id: idle_label
+          text_color: 0x34C759
+      # Timer text (MMSS) + cycling colors
+      - lvgl.label.update:
+          id: time_label
+          text: !lambda |-
+            int s = id(remaining_s);
+            int mm = s / 60;
+            int ss = s % 60;
+            if (mm > 99) mm = 99;
+            char buf[5];
+            snprintf(buf, sizeof(buf), "%02d%02d", mm, ss);
+            return std::string(buf);
+      - lvgl.obj.update:
+          id: time_label
+          text_color: !lambda |-
+            static const uint32_t colors[9] = {
+              0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x00C7BE,
+              0x007AFF, 0x5856D6, 0xAF52DE, 0xFFFFFF
+            };
+            return lv_color_hex(colors[id(color_idx) % 9]);
+
+lvgl:
+  displays:
+    - round_display
+  touchscreens:
+    - touch
+  buffer_size: 60%
+  bg_color: 0x000000
+  text_color: 0xFFFFFF
+  scrollbar_mode: "OFF"
+  on_ready:
+    then:
+      - script.execute: ui_update
+  pages:
+    - id: page_timer
+      widgets:
+        - obj:
+            id: root_bg
+            x: 0
+            y: 0
+            width: 480
+            height: 480
+            bg_color: 0x000000
+            bg_opa: 100%
+            scrollable: false
+            pad_all: 0
+            border_width: 0
+            outline_width: 0
+            radius: 0
+        - obj:
+            id: idle_container
+            x: 0
+            y: 0
+            width: 480
+            height: 480
+            bg_color: 0x000000
+            bg_opa: 100%
+            scrollable: false
+            pad_all: 0
+            border_width: 0
+            outline_width: 0
+            radius: 0
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align_main: center
+              flex_align_cross: center
+              flex_align_track: center
+            widgets:
+              - label:
+                  id: idle_label
+                  text: "LIGHTS\nDEPARTURE\nTIME"
+                  text_font: font_idle
+                  text_color: 0x34C759
+                  text_align: CENTER
+                  border_width: 0
+                  outline_width: 0
+        - obj:
+            id: time_container
+            x: 0
+            y: 0
+            width: 480
+            height: 480
+            bg_color: 0x000000
+            bg_opa: 100%
+            scrollable: false
+            hidden: true
+            pad_all: 0
+            border_width: 0
+            outline_width: 0
+            radius: 0
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align_main: center
+              flex_align_cross: center
+              flex_align_track: center
+            widgets:
+              - label:
+                  id: time_label
+                  text: "0000"
+                  text_font: font_timer
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  border_width: 0
+                  outline_width: 0
+
+dashboard_import:
+  package_import_url: github://gbroeckling/esphome-devices/newrotary/newrotary.yaml@main
+  import_full_config: true
+

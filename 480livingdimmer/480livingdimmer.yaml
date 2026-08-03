@@ -1,0 +1,601 @@
+substitutions:
+  name: livingroom_dimmer_4848s040
+  friendly_name: "Livingroom Touch Dimmer (4848S040)"
+
+  # ===== Home Assistant Light Entities =====
+  e1: "light.inside_entry"
+  e1_name: "Inside Entry"
+
+  e2: "light.kitchen_east"
+  e2_name: "Kitchen East"
+
+  e3: "light.kitchen_valance_west"
+  e3_name: "Valance West"
+
+  e4: "light.poker_pots"
+  e4_name: "Poker Pots"
+
+  e5: "light.valance_far_west"
+  e5_name: "Valance Far W"
+
+  e6: "light.pots_main_north"
+  e6_name: "Pots Main N"
+
+  e7: "light.fireplace_light"
+  e7_name: "Fireplace"
+
+  e8: "light.office_pots"
+  e8_name: "Office Pots"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: 600
+    then:
+      - script.execute: refresh_all_button_styles
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+ota:
+  - platform: esphome
+api:
+  reboot_timeout: 0s
+  on_client_connected:
+    then:
+      - logger.log: "✅ Connected to Home Assistant API"
+  on_client_disconnected:
+    then:
+      - logger.log: "❌ Disconnected from Home Assistant API"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+captive_portal:
+
+# =========================
+# Fonts
+# =========================
+font:
+  - file: "gfonts://Inter@700"
+    id: font_btn
+    size: 16
+
+# =========================
+# Backlight
+# =========================
+output:
+  - platform: ledc
+    id: backlight_output
+    pin: GPIO38
+    frequency: 150Hz
+    min_power: 0.01
+    zero_means_zero: true
+
+light:
+  - platform: monochromatic
+    id: display_backlight
+    output: backlight_output
+    restore_mode: ALWAYS_ON
+
+# =========================
+# Touch + Display buses
+# =========================
+i2c:
+  sda: GPIO19
+  scl:
+    number: GPIO45
+    ignore_strapping_warning: true
+
+spi:
+  clk_pin: GPIO48
+  mosi_pin: GPIO47
+
+# =========================
+# Display (ST7701S)
+# =========================
+display:
+  - platform: st7701s
+    id: tft_display
+    dimensions:
+      width: 480
+      height: 480
+    update_interval: never
+    auto_clear_enabled: false
+    data_rate: 2MHz
+    spi_mode: MODE3
+    color_order: RGB
+    invert_colors: false
+    cs_pin: GPIO39
+    de_pin: GPIO18
+    hsync_pin: GPIO16
+    vsync_pin: GPIO17
+    pclk_pin: GPIO21
+    pclk_frequency: 12MHz
+    pclk_inverted: false
+    hsync_pulse_width: 8
+    hsync_front_porch: 10
+    hsync_back_porch: 20
+    vsync_pulse_width: 8
+    vsync_front_porch: 10
+    vsync_back_porch: 10
+    init_sequence:
+      - 1
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10]
+      - [0xCD, 0x00]
+    data_pins:
+      red:   [11, 12, 13, 14, 0]
+      green: [8, 20, 3, 46, 9, 10]
+      blue:  [4, 5, 6, 7, 15]
+
+# =========================
+# Touch (GT911)
+# =========================
+touchscreen:
+  - platform: gt911
+    id: tft_touch
+    display: tft_display
+
+# =========================
+# Globals
+# Green = enabled for slider (included in group dim)
+# Grey  = disabled (excluded)
+# =========================
+globals:
+  - id: pending_brightness_pct
+    type: int
+    restore_value: no
+    initial_value: "50"
+
+  - id: t1_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t2_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t3_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t4_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t5_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t6_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t7_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: t8_en
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+# =========================
+# Scripts
+# =========================
+script:
+  # ---- Update button colors (green when enabled, grey when disabled) ----
+  - id: refresh_btn1_style
+    then:
+      - lvgl.button.update:
+          id: btn1
+          bg_color: !lambda |-
+            return id(t1_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn2_style
+    then:
+      - lvgl.button.update:
+          id: btn2
+          bg_color: !lambda |-
+            return id(t2_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn3_style
+    then:
+      - lvgl.button.update:
+          id: btn3
+          bg_color: !lambda |-
+            return id(t3_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn4_style
+    then:
+      - lvgl.button.update:
+          id: btn4
+          bg_color: !lambda |-
+            return id(t4_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn5_style
+    then:
+      - lvgl.button.update:
+          id: btn5
+          bg_color: !lambda |-
+            return id(t5_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn6_style
+    then:
+      - lvgl.button.update:
+          id: btn6
+          bg_color: !lambda |-
+            return id(t6_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn7_style
+    then:
+      - lvgl.button.update:
+          id: btn7
+          bg_color: !lambda |-
+            return id(t7_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_btn8_style
+    then:
+      - lvgl.button.update:
+          id: btn8
+          bg_color: !lambda |-
+            return id(t8_en) ? lv_color_hex(0x12A36D) : lv_color_hex(0x1D2630);
+
+  - id: refresh_all_button_styles
+    then:
+      - script.execute: refresh_btn1_style
+      - script.execute: refresh_btn2_style
+      - script.execute: refresh_btn3_style
+      - script.execute: refresh_btn4_style
+      - script.execute: refresh_btn5_style
+      - script.execute: refresh_btn6_style
+      - script.execute: refresh_btn7_style
+      - script.execute: refresh_btn8_style
+
+  # ---- Toggle enable/disable (green <-> grey) ----
+  - id: toggle_enable
+    parameters:
+      idx: int
+    then:
+      - lambda: |-
+          if (idx == 1) id(t1_en) = !id(t1_en);
+          else if (idx == 2) id(t2_en) = !id(t2_en);
+          else if (idx == 3) id(t3_en) = !id(t3_en);
+          else if (idx == 4) id(t4_en) = !id(t4_en);
+          else if (idx == 5) id(t5_en) = !id(t5_en);
+          else if (idx == 6) id(t6_en) = !id(t6_en);
+          else if (idx == 7) id(t7_en) = !id(t7_en);
+          else if (idx == 8) id(t8_en) = !id(t8_en);
+      - script.execute: refresh_all_button_styles
+
+  # ---- Apply slider brightness to ALL enabled (green) buttons ----
+  - id: group_brightness_send
+    then:
+      - if:
+          condition:
+            lambda: 'return id(t1_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e1}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t2_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e2}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t3_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e3}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t4_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e4}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t5_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e5}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t6_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e6}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t7_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e7}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+      - if:
+          condition:
+            lambda: 'return id(t8_en);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  entity_id: ${e8}
+                  brightness_pct: !lambda 'return id(pending_brightness_pct);'
+
+# =========================
+# UI (LVGL)
+# - No text on screen except button labels
+# - No preset % buttons
+# - Vertical slider centered (LVGL auto-orients by size)
+# =========================
+lvgl:
+  displays:
+    - tft_display
+  touchscreens:
+    - tft_touch
+
+  pages:
+    - id: page_dimmer
+      widgets:
+        - obj:
+            x: 0
+            y: 0
+            width: 480
+            height: 480
+            bg_color: 0x0B0F14
+            bg_opa: 100%
+
+        # LEFT COLUMN (4 buttons)
+        - button:
+            id: btn1
+            x: 16
+            y: 40
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 1 }
+            widgets:
+              - label:
+                  text: "${e1_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        - button:
+            id: btn2
+            x: 16
+            y: 115
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 2 }
+            widgets:
+              - label:
+                  text: "${e2_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        - button:
+            id: btn3
+            x: 16
+            y: 190
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 3 }
+            widgets:
+              - label:
+                  text: "${e3_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        - button:
+            id: btn4
+            x: 16
+            y: 265
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 4 }
+            widgets:
+              - label:
+                  text: "${e4_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        # RIGHT COLUMN (4 buttons)
+        - button:
+            id: btn5
+            x: 324
+            y: 40
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 5 }
+            widgets:
+              - label:
+                  text: "${e5_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        - button:
+            id: btn6
+            x: 324
+            y: 115
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 6 }
+            widgets:
+              - label:
+                  text: "${e6_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        - button:
+            id: btn7
+            x: 324
+            y: 190
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 7 }
+            widgets:
+              - label:
+                  text: "${e7_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        - button:
+            id: btn8
+            x: 324
+            y: 265
+            width: 140
+            height: 60
+            bg_color: 0x1D2630
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            radius: 14
+            on_press:
+              - script.execute: { id: toggle_enable, idx: 8 }
+            widgets:
+              - label:
+                  text: "${e8_name}"
+                  text_font: font_btn
+                  text_color: 0xFFFFFF
+                  align: center
+
+        # CENTER VERTICAL SLIDER
+        - slider:
+            id: bright_slider
+            x: 218        # centered ( (480 - 44) / 2 )
+            y: 40
+            width: 44
+            height: 400
+            min_value: 0
+            max_value: 100
+            value: 50
+            bg_color: 0x131A24
+            bg_grad_color: 0x0A0E14
+            bg_grad_dir: VER
+            border_width: 1
+            border_color: 0x22304A
+            radius: 22
+            indicator:
+              bg_color: 0xFFD98A
+              bg_grad_color: 0x7A4A00
+              bg_grad_dir: VER
+              radius: 18
+            knob:
+              bg_color: 0xE8EEF6
+              bg_grad_color: 0x9FB4CC
+              bg_grad_dir: VER
+              radius: 40
+              border_width: 2
+              border_color: 0x2A3A55
+              pad_all: 5
+            on_value:
+              then:
+                - lambda: |-
+                    // LED stepping: <=2% flickers most LED loads. 0 stays off,
+                    // 1..2 snaps to the 3% floor.
+                    int v = (int) x;
+                    if (v > 0 && v < 3) v = 3;
+                    id(pending_brightness_pct) = v;
+                - lvgl.label.update:
+                    id: slider_pct_lbl
+                    text: !lambda |-
+                      char b[8];
+                      if (id(pending_brightness_pct) == 0) return std::string("OFF");
+                      snprintf(b, sizeof(b), "%d%%", id(pending_brightness_pct));
+                      return std::string(b);
+            on_release:
+              then:
+                - script.execute: group_brightness_send
+        - label:
+            id: slider_pct_lbl
+            x: 204
+            y: 448
+            width: 72
+            text: "50%"
+            text_font: font_btn
+            text_color: 0xF2F6FC
+            text_align: CENTER
+            clickable: false
+
+dashboard_import:
+  package_import_url: github://gbroeckling/esphome-devices/480livingdimmer/480livingdimmer.yaml@main
+  import_full_config: true
+

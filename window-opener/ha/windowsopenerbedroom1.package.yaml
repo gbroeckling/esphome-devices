@@ -1,0 +1,238 @@
+# Home Assistant package for windowsopenerbedroom1  —  CORE-ONLY (no HACS / custom components)
+# ---------------------------------------------------------------------------
+# Deploy: drop in  config/packages/  with  homeassistant: packages: !include_dir_named packages
+# Then Developer Tools -> YAML -> Reload (Template entities, Automations, Helpers) or restart.
+#
+# Hardware: Tuya/Zigbee 2-ch controller paired in Z2M as two `light` entities:
+#   light.windowopenerbedroom1_light    = Relay 1 -> CLOSE
+#   light.windowopenerbedroom1_light_2  = Relay 2 -> OPEN
+#   (VERIFY direction once by jogging — if reversed, swap the two entity_ids.)
+# Open-loop, timed. Worm gear self-locks; rest state = BOTH relays off (enforced below).
+# Core template cover = open/closed only (no live position/opening % during the ~3 min travel —
+# that would need a custom component, which we are NOT using).
+#
+# !!! SAFETY: full travel ~180 s, NO end-stop detection. The HA delay is the only software stop.
+#     Fit the inline analog overcurrent cutoff (../END_STOPS.md) BEFORE enabling automation. !!!
+#
+# Temp logic: OPEN bath>27 & outside 15..25 ; CLOSE bath<=20 & (outside 20..40 OR -40..15)
+#   bath = sensor.invisoutlet_temperature (InvisMasterBath)
+#   outside = weather.forecast_home (physical "Entry outside Temp" reads bogus 2.4 C)
+# ---------------------------------------------------------------------------
+
+template:
+  - cover:
+      - name: "Windows Opener Bedroom 1"          # -> cover.windows_opener_bedroom_1
+        unique_id: windowsopenerbedroom1
+        device_class: window
+        optimistic: true
+        open_cover:
+          - service: light.turn_off                                   # interlock: close relay OFF
+            target: { entity_id: light.windowopenerbedroom1_light }
+          - service: light.turn_on                                    # open relay ON
+            target: { entity_id: light.windowopenerbedroom1_light_2 }
+          - delay:
+              seconds: "{{ states('input_number.windowsopenerbedroom1_travel') | int(180) }}"
+          - service: light.turn_off                                   # complete -> BOTH off
+            target:
+              entity_id:
+                - light.windowopenerbedroom1_light
+                - light.windowopenerbedroom1_light_2
+        close_cover:
+          - service: light.turn_off                                   # interlock: open relay OFF
+            target: { entity_id: light.windowopenerbedroom1_light_2 }
+          - service: light.turn_on                                    # close relay ON
+            target: { entity_id: light.windowopenerbedroom1_light }
+          - delay:
+              seconds: "{{ states('input_number.windowsopenerbedroom1_travel') | int(180) }}"
+          - service: light.turn_off                                   # complete -> BOTH off
+            target:
+              entity_id:
+                - light.windowopenerbedroom1_light
+                - light.windowopenerbedroom1_light_2
+        stop_cover:
+          - service: light.turn_off
+            target:
+              entity_id:
+                - light.windowopenerbedroom1_light
+                - light.windowopenerbedroom1_light_2
+
+input_boolean:
+  windowsopenerbedroom1_auto:
+    name: Bedroom1 Window automation enable
+    icon: mdi:window-open-variant
+    # KEEP OFF until the hardware overcurrent cutoff is fitted (see END_STOPS.md).
+  windowsopenerbedroom1_manual_today:
+    name: Bedroom1 Window manually controlled today
+    icon: mdi:hand-back-right
+
+input_number:
+  windowsopenerbedroom1_travel:
+    name: Bedroom1 Window travel time
+    min: 1
+    max: 200
+    step: 1
+    initial: 170          # MEASURE: set just UNDER full travel (~180 s)
+    unit_of_measurement: s
+    icon: mdi:timer
+  windowsopenerbedroom1_open_above:
+    name: Bedroom1 Window open above (bath)
+    min: 10
+    max: 35
+    step: 0.5
+    initial: 27
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-high
+  windowsopenerbedroom1_close_below:
+    name: Bedroom1 Window close below (bath)
+    min: 5
+    max: 30
+    step: 0.5
+    initial: 20
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-low
+
+automation:
+  # --- "both relays off at rest" guarantees ---------------------------------
+  - alias: "Bedroom1 Window - relays off on HA start"
+    id: windowsopenerbedroom1_init
+    trigger:
+      - platform: homeassistant
+        event: start
+    action:
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.windowopenerbedroom1_light
+            - light.windowopenerbedroom1_light_2
+    mode: single
+
+  - alias: "Bedroom1 Window - failsafe: relay never on past full travel"
+    id: windowsopenerbedroom1_relay_failsafe
+    trigger:
+      - platform: state
+        entity_id:
+          - light.windowopenerbedroom1_light
+          - light.windowopenerbedroom1_light_2
+        to: "on"
+        for: "00:03:50"          # > full travel; a relay on this long = stuck -> kill both
+    action:
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.windowopenerbedroom1_light
+            - light.windowopenerbedroom1_light_2
+    mode: single
+
+  - alias: "Bedroom1 Window - failsafe: both relays on is not a rest state"
+    id: windowsopenerbedroom1_both_on
+    trigger:
+      - platform: template
+        value_template: >-
+          {{ is_state('light.windowopenerbedroom1_light','on')
+             and is_state('light.windowopenerbedroom1_light_2','on') }}
+        for: "00:00:03"
+    action:
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.windowopenerbedroom1_light
+            - light.windowopenerbedroom1_light_2
+    mode: single
+
+  # --- temperature control --------------------------------------------------
+  - alias: "Bedroom1 Window - OPEN (bath>27 & outside 15-25)"
+    id: windowsopenerbedroom1_open
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.invisoutlet_temperature
+        above: input_number.windowsopenerbedroom1_open_above
+        for: "00:05:00"
+      - platform: numeric_state
+        entity_id: weather.forecast_home
+        attribute: temperature
+        above: 15
+        below: 25
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.windowsopenerbedroom1_auto
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.windowsopenerbedroom1_manual_today
+        state: "off"
+      - condition: state
+        entity_id: cover.windows_opener_bedroom_1
+        state: closed
+      - condition: numeric_state
+        entity_id: sensor.invisoutlet_temperature
+        above: input_number.windowsopenerbedroom1_open_above
+      - condition: numeric_state
+        entity_id: weather.forecast_home
+        attribute: temperature
+        above: 15
+        below: 25
+    action:
+      - service: cover.open_cover
+        target: { entity_id: cover.windows_opener_bedroom_1 }
+    mode: single
+
+  - alias: "Bedroom1 Window - CLOSE (bath<=20 & outside 20-40 or -40-15)"
+    id: windowsopenerbedroom1_close
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.invisoutlet_temperature
+        below: input_number.windowsopenerbedroom1_close_below
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.windowsopenerbedroom1_auto
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.windowsopenerbedroom1_manual_today
+        state: "off"
+      - condition: state
+        entity_id: cover.windows_opener_bedroom_1
+        state: open
+      - condition: or
+        conditions:
+          - condition: numeric_state
+            entity_id: weather.forecast_home
+            attribute: temperature
+            above: 20
+            below: 40
+          - condition: numeric_state
+            entity_id: weather.forecast_home
+            attribute: temperature
+            above: -40
+            below: 15
+    action:
+      - service: cover.close_cover
+        target: { entity_id: cover.windows_opener_bedroom_1 }
+    mode: single
+
+  # --- manual override (pause auto for the rest of the day) ------------------
+  - alias: "Bedroom1 Window - manual control pauses auto for the day"
+    id: windowsopenerbedroom1_manual_detect
+    trigger:
+      - platform: state
+        entity_id:
+          - cover.windows_opener_bedroom_1
+          - light.windowopenerbedroom1_light
+          - light.windowopenerbedroom1_light_2
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.context.user_id is not none }}"
+    action:
+      - service: input_boolean.turn_on
+        target: { entity_id: input_boolean.windowsopenerbedroom1_manual_today }
+    mode: single
+
+  - alias: "Bedroom1 Window - reset manual override at midnight"
+    id: windowsopenerbedroom1_manual_reset
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    action:
+      - service: input_boolean.turn_off
+        target: { entity_id: input_boolean.windowsopenerbedroom1_manual_today }
+    mode: single
