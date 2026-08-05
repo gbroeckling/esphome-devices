@@ -4,8 +4,8 @@ Motorized window opener integrated with Home Assistant as a `cover` entity (open
 
 ## Status — where this actually stands
 
-**🔨 Partly built. Hardware is wired and the Home Assistant logic exists — the
-Zigbee relay is offline and there is no `cover` entity yet.**
+**🚧 In progress. Hardware is wired and the Home Assistant logic is built — the
+remaining work is exposing it as a `cover` entity and proving the end stops.**
 
 | Relay + timer board | Enclosure at the window | Enclosure mounted |
 |:-:|:-:|:-:|
