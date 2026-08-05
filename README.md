@@ -125,11 +125,10 @@ widget. Symptom: every button on the screen fires the same unrelated entity.
 while the device kept running old firmware. Always read the `compiled on` stamp
 out of the live device log before believing a flash landed.
 
-**5. A correct-looking e-paper screen is not proof of life.** E-paper holds its
-last rendered image with no power, so a panel that has lost Wi-Fi or power looks
-completely healthy from across the room. Both e-paper configs here put uptime and
-an "updated HH:MM" stamp on the display for exactly this reason — check those,
-not the picture.
+**5. E-paper keeps its last image with no power — so put a timestamp on it.**
+The screen alone can never tell you whether what you're reading is current. Both
+e-paper configs here render uptime and an "updated HH:MM" stamp for exactly that
+reason. On e-paper that's a design requirement of the medium, not a nice-to-have.
 
 ## ESP32-P4 voice: read this before you buy
 

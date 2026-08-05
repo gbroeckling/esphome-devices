@@ -32,9 +32,9 @@ and charging state, and the four physical buttons.
 
 ### Notes
 
-- **There is no `deep_sleep` in this config.** If the panel stops updating it is
-  unpowered or the battery is flat — it is not sleeping. Worth knowing before you
-  go hunting for a power-management bug that isn't there.
+- **There is no `deep_sleep` in this config.** The panel stays awake and refreshes
+  on its rotation, so there is no sleep/wake behaviour to debug. If you want
+  battery longevity instead of always-current data, that's a change you'd add.
 - Deliberately kept feature-complete rather than trimmed: all seven views, all
   four buttons, the red accent colour, the 2-minute rotation.
 - Entity IDs are mine; repoint them before flashing.
