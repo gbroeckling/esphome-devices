@@ -5,6 +5,10 @@
 > **Part of the countdown system** — this is the *input*. The two HUB75 matrix
 > displays ([32x64-countdown](../32x64-countdown/) and
 > [second-64x64-with-trinity](../second-64x64-with-trinity/)) are the *output*.
+>
+> **Sibling dial** — [rotorydialesp32](../rotorydialesp32/) is the same Makerfabs
+> round hardware doing a completely different job (group light dimming). Same
+> CST826 touch component, so the same ESPHome version constraint applies to both.
 
 ![Round rotary dial display showing the LIGHTS DEPARTURE TIME countdown label](images/rotary-countdown.jpg)
 

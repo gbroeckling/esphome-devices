@@ -80,6 +80,12 @@ interesting without something feeding them.
 | [rotorydialesp32](rotorydialesp32/) | MaTouch round rotary light dimmer | esp32-s3-devkitc-1 (round) | ⚠️ Works, pinned to an old ESPHome |
 | [480livingdimmer](480livingdimmer/) | 480×480 LVGL touch dimmer | esp32s3 | ⚠️ Good config, device repurposed since |
 
+**Two round dials, same hardware, different jobs:**
+[rotorydialesp32](rotorydialesp32/) dims lights, while
+[newrotary](newrotary/) runs the countdown above. Both are Makerfabs round
+displays on the CST826 touch component, so both are pinned to the older ESPHome
+branch — if you build one, the other's notes apply too.
+
 ### 📄 E-paper displays
 
 | Device | What it is | Board | Status |

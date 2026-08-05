@@ -3,6 +3,11 @@
 **Board:** esp32-s3-devkitc-1 (MaTouch round display, ST7701S + CST826 touch)
 **Controls:** rotary encoder on GPIO10/13, push button on GPIO14
 
+> **Sibling dial** — [newrotary](../newrotary/) is the same Makerfabs round
+> hardware running a countdown timer instead of a dimmer, and it drives the
+> [countdown system](../32x64-countdown/) displays. Same CST826 touch component,
+> so the ESPHome version constraint below applies to both dials.
+
 ## Status — where this actually stands
 
 **⚠️ Works, and feels good on LEDs now — but it is pinned to an older ESPHome.**
