@@ -2,6 +2,22 @@
 
 Motorized window opener integrated with Home Assistant as a `cover` entity (open / close).
 
+## Status — where this actually stands
+
+**📐 Design and bill of materials only. Nothing is built yet.**
+
+Parts were ordered 2026-06-30. There is no working hardware, no flashed device,
+and no verified end-stop handling. The relay truth table below *has* been measured,
+and the mechanical approach is thought through, but treat this whole folder as a
+worked design rather than a build you can follow to completion.
+
+Note also that this is **not actually an ESPHome device** — control is Zigbee
+through an existing Zigbee2MQTT coordinator, with no ESP board in the path. It
+lives in this repo because it is part of the same home-automation effort. If you
+were expecting a `.yaml` to flash, there isn't one.
+
+Open items are listed at the bottom.
+
 ## Goal
 
 Drive a window via a worm-geared motor coupled to the window's splined drive shaft, controlled from HA — open / close, with safe end-stop handling. Worm gear is self-locking, so the window holds position with no power applied.
