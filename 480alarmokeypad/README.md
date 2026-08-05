@@ -10,7 +10,8 @@
 
 ## Status — where this actually stands
 
-**⚠️ The config here is good. It is ahead of what is on my own hardware.**
+**✅ Running.** One note if you have an existing panel rather than a fresh one —
+see below.
 
 A round touchscreen keypad for the [Alarmo](https://github.com/nielsfaber/alarmo)
 alarm integration — code entry, arm/disarm, colour-coded state.

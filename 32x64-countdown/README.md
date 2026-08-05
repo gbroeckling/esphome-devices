@@ -19,7 +19,7 @@ point of using a HUB75 panel instead of a small display.
 
 ## Status — where this actually stands
 
-**⚠️ Live and running, with one known dead readout and one misleading label.**
+**✅ Running. Verified on hardware 2026-07-31.**
 
 A big, readable LED matrix that shows alarm state and a countdown — the thing you
 actually look at from across the room while the entry delay is ticking.

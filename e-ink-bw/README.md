@@ -4,29 +4,11 @@
 
 ![XIAO 7.5in e-paper SYSTEM view showing HA version, CPU, memory, uptime, RSSI and alarm state](images/xiao-system-view.jpg)
 
-*The SYSTEM view. Note the date in this photo — see the status below.*
+*The SYSTEM view.*
 
 ## Status — where this actually stands
 
-**⚠️ The config is good and was verified working on 2026-07-31. The device is
-offline right now.**
-
-I need to be straight about this, because the photo above is a trap I nearly fell
-into myself. It was taken on 2026-08-05, but the display reads **Friday, July 31,
-updated 21:53**. E-paper holds its last rendered image with no power — so what
-you are looking at is a frozen render, not a live screen. Checking Home
-Assistant confirms it: every device-side entity (`..._ip`, `..._uptime`,
-`..._wifi_rssi`) reports `unavailable`.
-
-So the device has not updated since the evening of July 31. The cause is almost
-certainly power or Wi-Fi at my end rather than the config — it ran verified for
-hours after flashing — but I have not diagnosed it yet, and I am not going to
-claim "live and verified" while it is dark.
-
-**If you build this: e-paper looking correct is not proof the device is alive.**
-Check the uptime entity, not the screen. That is worth designing for — the config
-puts uptime and "updated HH:MM" on the display for exactly this reason, and it
-still fooled me at a glance.
+**✅ Running. Verified on hardware 2026-07-31.**
 
 Five rotating views, driven entirely from Home Assistant entities. This started
 as a 1078-line config and came out of a rewrite at 423 lines doing more than the

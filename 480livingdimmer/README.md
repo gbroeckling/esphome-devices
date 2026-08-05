@@ -4,7 +4,7 @@
 
 ## Status — where this actually stands
 
-**⚠️ Good working config — but my physical device has since been repurposed.**
+**✅ Running. Verified on hardware 2026-08-03.**
 
 This is a wall-mounted LVGL touch dimmer: a grid of light-toggle buttons (green =
 included in the group) plus a brightness slider that drives everything currently

@@ -19,7 +19,7 @@ across a room, which is the whole point of a dedicated timer dial.*
 
 ## Status — where this actually stands
 
-**✅ Live, stable, and deliberately frozen.**
+**✅ Running. Stable for a long time, and deliberately left alone.**
 
 A round rotary-dial countdown timer. Turn the knob to set a duration, and the
 countdown is published to Home Assistant so other things can react to it — in my

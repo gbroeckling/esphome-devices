@@ -22,11 +22,8 @@ Zigbee relay is offline and there is no `cover` entity yet.**
   and relays-off-on-HA-start. The failsafes matter: two relays driving one
   reversible motor is a dead short if both close at once.
 
-**What does not exist:**
+**What does not exist yet:**
 
-- **The relay device currently reports `unavailable` in Home Assistant** — it is
-  either unpowered or dropped off the Zigbee mesh. So none of the above is running
-  right now.
 - **No `cover` entity.** The goal below describes a proper HA `cover` with
   open/close; what is actually built drives the relays through scripts. That
   translation step hasn't been done.

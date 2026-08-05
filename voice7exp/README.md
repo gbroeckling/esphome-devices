@@ -6,8 +6,9 @@
 
 ## Status — where this actually stands
 
-**Live and running. This board is the *ears* of a two-board voice assistant, not
-a complete one.**
+**✅ Running, verified end to end 2026-08-04** — wake word spoken at the panel,
+reply audible from the paired speaker board. This board is the *ears* of a
+two-board voice assistant, not a complete one.
 
 It hears the wake word, streams to the Home Assistant pipeline, and then hands the
 spoken reply off to a **second** ESP32-P4 ([p4-voice-assist-guition](../p4-voice-assist-guition/))
@@ -18,8 +19,7 @@ split is the workaround that made office voice work at all. See the P4 section i
 the [repo README](../README.md) before you buy hardware expecting otherwise.
 
 **Verified:** wake engine loads and stays in detect state, mic streams to the
-pipeline, replies play on the paired board.
-**Still pending on my end:** the final spoken "Hey Jarvis" end-to-end test.
+pipeline, and spoken replies come back out of the paired board.
 
 ### Known rough edges
 

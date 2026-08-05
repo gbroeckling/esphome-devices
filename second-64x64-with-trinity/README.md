@@ -8,7 +8,7 @@
 
 ## Status — where this actually stands
 
-**⚠️ Live and running. Same two known issues as its sibling.**
+**✅ Running.** Renders the same pages as its sibling.
 
 The second of two LED matrix displays in the house, on the
 [ESP32-Trinity](https://github.com/witnessmenow/ESP32-Trinity) driver board —

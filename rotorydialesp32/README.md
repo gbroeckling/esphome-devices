@@ -10,7 +10,8 @@
 
 ## Status — where this actually stands
 
-**⚠️ Works, and feels good on LEDs now — but it is pinned to an older ESPHome.**
+**✅ Running. Flashed and verified 2026-08-02, and it feels good on LEDs now.**
+One constraint worth knowing before you build: it is pinned to an older ESPHome.
 
 A wall dimmer that drives a group of lights from one knob, using delta-from-a-baseline
 group dimming with per-light bitmask toggles on the LVGL buttons, so you can pick

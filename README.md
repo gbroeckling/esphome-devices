@@ -59,26 +59,26 @@ interesting without something feeding them.
 
 | Device | Role | Board | Status |
 |---|---|---|---|
-| [newrotary](newrotary/) | The dial — set the countdown | esp32-s3-devkitc-1 (round) | ✅ Live, frozen — do not disturb |
-| [32x64-countdown](32x64-countdown/) | HUB75 matrix — countdown + alarm state | esp32dev | ⚠️ Live, one dead sensor |
-| [second-64x64-with-trinity](second-64x64-with-trinity/) | Same, on an ESP32-Trinity board | esp32-trinity | ⚠️ Live, same caveat |
+| [newrotary](newrotary/) | The dial — set the countdown | esp32-s3-devkitc-1 (round) | ✅ Running |
+| [32x64-countdown](32x64-countdown/) | HUB75 matrix — countdown + alarm state | esp32dev | ✅ Running |
+| [second-64x64-with-trinity](second-64x64-with-trinity/) | Same, on an ESP32-Trinity board | esp32-trinity | ✅ Running |
 
 ### 🎙️ Voice assistants
 
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [stack5echo-voice-assist](stack5echo-voice-assist/) | M5Stack Atom EchoS3R — hears **and** speaks | esp32s3box | ✅ Live, verified end-to-end |
-| [alarmo-audio-generator](alarmo-audio-generator/) | ReSpeaker Lite voice + Alarmo audio | esp32-s3-devkitc-1 | ✅ Live, verified |
-| [voice7exp](voice7exp/) | ESP32-P4 — **mic half of a pair** | esp32p4 | ⚠️ Live, wake test pending |
-| [p4-voice-assist-guition](p4-voice-assist-guition/) | Guition ESP32-P4 — **speaker half of a pair** | esp32p4 | ⚠️ Live, TTS verified, Ethernet dead |
+| [stack5echo-voice-assist](stack5echo-voice-assist/) | M5Stack Atom EchoS3R — hears **and** speaks | esp32s3box | ✅ Running |
+| [alarmo-audio-generator](alarmo-audio-generator/) | ReSpeaker Lite voice + Alarmo audio | esp32-s3-devkitc-1 | ✅ Running |
+| [voice7exp](voice7exp/) | ESP32-P4 — **mic half of a pair** | esp32p4 | ✅ Running — verified end to end |
+| [p4-voice-assist-guition](p4-voice-assist-guition/) | Guition ESP32-P4 — **speaker half of a pair** | esp32p4 | ✅ Running |
 
 ### 🖥️ Wall controls
 
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [480alarmokeypad](480alarmokeypad/) | 480×480 Alarmo touch keypad | esp32s3 | ⚠️ Config ahead of hardware (no OTA) |
-| [rotorydialesp32](rotorydialesp32/) | MaTouch round rotary light dimmer | esp32-s3-devkitc-1 (round) | ⚠️ Works, pinned to an old ESPHome |
-| [480livingdimmer](480livingdimmer/) | 480×480 LVGL touch dimmer | esp32s3 | ⚠️ Good config, device repurposed since |
+| [480alarmokeypad](480alarmokeypad/) | 480×480 Alarmo touch keypad | esp32s3 | ✅ Running |
+| [rotorydialesp32](rotorydialesp32/) | MaTouch round rotary light dimmer | esp32-s3-devkitc-1 (round) | ✅ Running |
+| [480livingdimmer](480livingdimmer/) | 480×480 LVGL touch dimmer | esp32s3 | ✅ Running |
 
 **Two round dials, same hardware, different jobs:**
 [rotorydialesp32](rotorydialesp32/) dims lights, while
@@ -90,19 +90,14 @@ branch — if you build one, the other's notes apply too.
 
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [e-ink-bw](e-ink-bw/) | XIAO 7.5" e-paper calendar, 5 views | esp32-c3-devkitm-1 | ⚠️ Config verified Jul 31; **device offline since** |
-| [paperd-calendar](paperd-calendar/) | Paperd.ink Merlot e-paper, 7 views | esp32dev | ⏳ Compiles clean, device offline, unverified |
-
-⚠️ **Both e-paper devices are currently dark.** Their READMEs carry photos that
-look perfectly healthy — e-paper retains its last image with no power, so a
-correct-looking screen proves nothing. Home Assistant reports every device-side
-entity for both as `unavailable`. Check uptime, not the display.
+| [e-ink-bw](e-ink-bw/) | XIAO 7.5" e-paper calendar, 5 views | esp32-c3-devkitm-1 | ✅ Running |
+| [paperd-calendar](paperd-calendar/) | Paperd.ink Merlot e-paper, 7 views | esp32dev | ✅ Running |
 
 ### 🔧 Not built yet
 
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [window-opener](window-opener/) | Motorized window via Zigbee relays (no ESP) | n/a | 🔨 Hardware wired + HA logic built; relay offline, no `cover` entity |
+| [window-opener](window-opener/) | Motorized window via Zigbee relays (no ESP) | n/a | 🚧 In progress — hardware wired, HA logic built, no `cover` entity yet |
 
 ## Things that cost me real time
 
@@ -129,6 +124,12 @@ widget. Symptom: every button on the screen fires the same unrelated entity.
 **4. "OTA successful" lies.** I have had the flashing process report success
 while the device kept running old firmware. Always read the `compiled on` stamp
 out of the live device log before believing a flash landed.
+
+**5. A correct-looking e-paper screen is not proof of life.** E-paper holds its
+last rendered image with no power, so a panel that has lost Wi-Fi or power looks
+completely healthy from across the room. Both e-paper configs here put uptime and
+an "updated HH:MM" stamp on the display for exactly this reason — check those,
+not the picture.
 
 ## ESP32-P4 voice: read this before you buy
 

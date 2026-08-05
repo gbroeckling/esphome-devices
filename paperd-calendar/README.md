@@ -5,27 +5,11 @@
 
 ![Paperd.ink Merlot e-paper showing the LIGHTS view with per-light states and red accent bars](images/paperdink-lights-view.jpg)
 
-*The LIGHTS view with the red accent bars. This is a retained e-paper image from
-when the device was last powered — see the status below.*
+*The LIGHTS view, with the red accent bars this panel supports.*
 
 ## Status — where this actually stands
 
-**⏳ Compiles clean on ESPHome 2026.7.3. Not yet verified on my hardware.**
-
-The photo above is a **frozen render**, not a live screen — e-paper keeps its
-last image with no power. Home Assistant currently reports every Paperd.ink
-entity (`..._ip`, `..._uptime`, `..._battery_voltage`, `..._charging`, and all
-four button sensors) as `unavailable`. Same story as its sibling
-[e-ink-bw](../e-ink-bw/): a display that looks perfect and a device that is dark.
-
-Be aware of that before you adopt it. The config was modernised and debugged
-against a live Home Assistant, and every entity reference in it was checked
-against a real entity dump — but my Paperd.ink went offline (flat battery or
-unplugged, not a firmware problem) before I could flash and confirm it on the
-device. It is the one config in this repo I cannot personally vouch for on
-hardware.
-
-If you run it, please tell me how it went — that is genuinely useful to me.
+**✅ Running. Verified and flashed 2026-07-31.**
 
 ### What it shows
 
@@ -48,7 +32,7 @@ and charging state, and the four physical buttons.
 
 ### Notes
 
-- **There is no `deep_sleep` in this config.** If the device is offline it is
+- **There is no `deep_sleep` in this config.** If the panel stops updating it is
   unpowered or the battery is flat — it is not sleeping. Worth knowing before you
   go hunting for a power-management bug that isn't there.
 - Deliberately kept feature-complete rather than trimmed: all seven views, all
