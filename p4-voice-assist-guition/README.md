@@ -2,6 +2,12 @@
 
 **Board:** Guition ESP32-P4, 16MB flash · Wi-Fi via onboard ESP32-C6 (`esp32_hosted`)
 
+![Guition ESP32-P4-M3 dev board, module labelled 32M PSRAM / 16M flash / ESP32-C6 Wi-Fi, with the RJ45 Ethernet jack at right](images/guition-p4-board.jpg)
+
+*The module label tells you what you're getting: ESP32P4NRW32, 32M PSRAM, 16M
+flash, Wi-Fi via an onboard ESP32-C6. The RJ45 at the right is the Ethernet port
+described below — the one that stopped working.*
+
 ## Status — where this actually stands
 
 **Live and running. This board is the *voice* of a two-board voice assistant.**

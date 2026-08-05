@@ -10,7 +10,14 @@
 > round hardware doing a completely different job (group light dimming). Same
 > CST826 touch component, so the same ESPHome version constraint applies to both.
 
-![Round rotary dial display showing the LIGHTS DEPARTURE TIME countdown label](images/rotary-countdown.jpg)
+| Countdown label | Countdown running |
+|:-:|:-:|
+| ![Round rotary dial showing the LIGHTS DEPARTURE TIME label](images/rotary-countdown.jpg) | ![Round dial showing 02:53 remaining in large blue digits](images/rotary-countdown-running.jpg) |
+
+> **Known cosmetic issue:** text renders rotated 90° against the round bezel, as
+> both photos show. It's consistent across shots so it's the build, not the
+> camera angle. Unfixed — this device is frozen (see below), so I haven't chased
+> it.
 
 ## Status — where this actually stands
 

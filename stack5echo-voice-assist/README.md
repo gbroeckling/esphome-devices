@@ -5,7 +5,7 @@ ES8311 codec + LP5562 LED via the m5stack external components.
 
 ## Status — where this actually stands
 
-**✅ Live, verified end-to-end. This is the config I'd point you at first.**
+**✅ Live, verified end-to-end.**
 
 Announcements are audible, the microphone streams, the wake engine stays in
 detect state, and it survives daily use. Unlike the ESP32-P4 pair in this repo,

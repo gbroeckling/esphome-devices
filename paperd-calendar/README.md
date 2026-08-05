@@ -3,9 +3,20 @@
 **Board:** esp32dev (Paperd.ink Merlot) · tri-colour e-paper, battery powered,
 4 physical buttons
 
+![Paperd.ink Merlot e-paper showing the LIGHTS view with per-light states and red accent bars](images/paperdink-lights-view.jpg)
+
+*The LIGHTS view with the red accent bars. This is a retained e-paper image from
+when the device was last powered — see the status below.*
+
 ## Status — where this actually stands
 
 **⏳ Compiles clean on ESPHome 2026.7.3. Not yet verified on my hardware.**
+
+The photo above is a **frozen render**, not a live screen — e-paper keeps its
+last image with no power. Home Assistant currently reports every Paperd.ink
+entity (`..._ip`, `..._uptime`, `..._battery_voltage`, `..._charging`, and all
+four button sensors) as `unavailable`. Same story as its sibling
+[e-ink-bw](../e-ink-bw/): a display that looks perfect and a device that is dark.
 
 Be aware of that before you adopt it. The config was modernised and debugged
 against a live Home Assistant, and every entity reference in it was checked

@@ -90,14 +90,19 @@ branch — if you build one, the other's notes apply too.
 
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [e-ink-bw](e-ink-bw/) | XIAO 7.5" e-paper calendar, 5 views | esp32-c3-devkitm-1 | ✅ Live, verified |
-| [paperd-calendar](paperd-calendar/) | Paperd.ink Merlot e-paper, 7 views | esp32dev | ⏳ Compiles clean, unverified on hardware |
+| [e-ink-bw](e-ink-bw/) | XIAO 7.5" e-paper calendar, 5 views | esp32-c3-devkitm-1 | ⚠️ Config verified Jul 31; **device offline since** |
+| [paperd-calendar](paperd-calendar/) | Paperd.ink Merlot e-paper, 7 views | esp32dev | ⏳ Compiles clean, device offline, unverified |
+
+⚠️ **Both e-paper devices are currently dark.** Their READMEs carry photos that
+look perfectly healthy — e-paper retains its last image with no power, so a
+correct-looking screen proves nothing. Home Assistant reports every device-side
+entity for both as `unavailable`. Check uptime, not the display.
 
 ### 🔧 Not built yet
 
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [window-opener](window-opener/) | Motorized window → HA cover (Zigbee, no ESP) | TBD | 📐 Scaffolding only, no hardware yet |
+| [window-opener](window-opener/) | Motorized window via Zigbee relays (no ESP) | n/a | 🔨 Hardware wired + HA logic built; relay offline, no `cover` entity |
 
 ## Things that cost me real time
 

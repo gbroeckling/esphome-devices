@@ -4,17 +4,38 @@ Motorized window opener integrated with Home Assistant as a `cover` entity (open
 
 ## Status — where this actually stands
 
-**📐 Design and bill of materials only. Nothing is built yet.**
+**🔨 Partly built. Hardware is wired and the Home Assistant logic exists — the
+Zigbee relay is offline and there is no `cover` entity yet.**
 
-Parts were ordered 2026-06-30. There is no working hardware, no flashed device,
-and no verified end-stop handling. The relay truth table below *has* been measured,
-and the mechanical approach is thought through, but treat this whole folder as a
-worked design rather than a build you can follow to completion.
+| Relay + timer board | Enclosure at the window | Enclosure mounted |
+|:-:|:-:|:-:|
+| ![Zigbee 2-channel relay module wired to a delay/timer PCB](images/relay-and-timer-board.jpg) | ![Metal enclosure sitting on the window sill beside the relay module](images/enclosure-on-sill.jpg) | ![Enclosure mounted against the window frame](images/enclosure-mounted.jpg) |
 
-Note also that this is **not actually an ESPHome device** — control is Zigbee
-through an existing Zigbee2MQTT coordinator, with no ESP board in the path. It
-lives in this repo because it is part of the same home-automation effort. If you
-were expecting a `.yaml` to flash, there isn't one.
+**What exists:**
+
+- Zigbee 2-channel relay module wired to a delay/timer board, in a metal
+  enclosure mounted at the window.
+- A Zigbee device paired as `windowopenerbedroom1`, exposing the two relays as
+  light entities plus power-on-behaviour selects.
+- Real Home Assistant logic: open-when-warm and close-when-cool automations, open
+  and close scripts, and **three failsafes** — both-relays-on, relay-on-past-travel,
+  and relays-off-on-HA-start. The failsafes matter: two relays driving one
+  reversible motor is a dead short if both close at once.
+
+**What does not exist:**
+
+- **The relay device currently reports `unavailable` in Home Assistant** — it is
+  either unpowered or dropped off the Zigbee mesh. So none of the above is running
+  right now.
+- **No `cover` entity.** The goal below describes a proper HA `cover` with
+  open/close; what is actually built drives the relays through scripts. That
+  translation step hasn't been done.
+- No verified end-stop handling.
+
+Note also that this is **not an ESPHome device** — control is Zigbee through an
+existing Zigbee2MQTT coordinator, with no ESP board in the path. It lives in this
+repo because it is part of the same home-automation effort. If you were expecting
+a `.yaml` to flash, there isn't one.
 
 Open items are listed at the bottom.
 

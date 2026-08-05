@@ -2,6 +2,13 @@
 
 **Board:** esp32-s3-devkitc-1 · ReSpeaker Lite mic array
 
+| ReSpeaker Lite board | With the XIAO ESP32-S3 seated |
+|:-:|:-:|
+| ![ReSpeaker Lite board showing the XMOS DSP, speaker connector and Seeed XIAO module](images/respeaker-lite-top.jpg) | ![Angled view of the same board with antenna lead and speaker wiring](images/respeaker-lite-angle.jpg) |
+
+*The XMOS chip in the middle is the mic array DSP — and it is also the I²S clock
+master, which drives the design constraint below.*
+
 ## Status — where this actually stands
 
 **✅ Live and verified.** Another board that both hears and speaks, and a good
