@@ -2,6 +2,10 @@
 
 **Board:** ESP32-Trinity (esp32dev core) · 64×64 HUB75 RGB matrix
 
+> **Part of the countdown system** — this is an *output*. The countdown comes
+> from the rotary dial ([newrotary](../newrotary/)); the sibling display is
+> [32x64-countdown](../32x64-countdown/), which carries the photos.
+
 ## Status — where this actually stands
 
 **⚠️ Live and running. Same two known issues as its sibling.**

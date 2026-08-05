@@ -2,6 +2,10 @@
 
 **Board:** esp32-s3-devkitc-1 (Makerfabs round display, CST826 touch)
 
+> **Part of the countdown system** — this is the *input*. The two HUB75 matrix
+> displays ([32x64-countdown](../32x64-countdown/) and
+> [second-64x64-with-trinity](../second-64x64-with-trinity/)) are the *output*.
+
 ![Round rotary dial display showing the LIGHTS DEPARTURE TIME countdown label](images/rotary-countdown.jpg)
 
 ## Status — where this actually stands

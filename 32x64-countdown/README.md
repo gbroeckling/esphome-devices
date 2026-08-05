@@ -2,6 +2,10 @@
 
 **Board:** esp32dev · HUB75 RGB LED matrix
 
+> **Part of the countdown system** — this is an *output*. The countdown comes
+> from the rotary dial ([newrotary](../newrotary/)); the sibling display is
+> [second-64x64-with-trinity](../second-64x64-with-trinity/).
+
 > Note: the folder is named `32x64-countdown` but the device inside declares
 > itself `64x64-countdown`. Historical naming drift on my side — the config is
 > the one that runs.

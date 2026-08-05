@@ -44,21 +44,54 @@ Use this if you want to inherit the config and override pieces of it.
 
 ## The devices
 
+### 🕐 Countdown system — one dial, two displays
+
+These three are **one system, not three gadgets.** The rotary dial sets a
+countdown and publishes it to Home Assistant; both LED matrices subscribe to it
+and render it big enough to read from across the room, alongside live alarm
+state. Adopt the dial on its own if you like, but the matrices are much less
+interesting without something feeding them.
+
+```
+[newrotary]  ──set countdown──►  Home Assistant  ──►  [32x64-countdown]
+ rotary dial                                     └──►  [second-64x64-with-trinity]
+```
+
+| Device | Role | Board | Status |
+|---|---|---|---|
+| [newrotary](newrotary/) | The dial — set the countdown | esp32-s3-devkitc-1 (round) | ✅ Live, frozen — do not disturb |
+| [32x64-countdown](32x64-countdown/) | HUB75 matrix — countdown + alarm state | esp32dev | ⚠️ Live, one dead sensor |
+| [second-64x64-with-trinity](second-64x64-with-trinity/) | Same, on an ESP32-Trinity board | esp32-trinity | ⚠️ Live, same caveat |
+
+### 🎙️ Voice assistants
+
 | Device | What it is | Board | Status |
 |---|---|---|---|
-| [stack5echo-voice-assist](stack5echo-voice-assist/) | M5Stack Atom EchoS3R voice satellite | esp32s3box | ✅ Live, verified end-to-end |
-| [e-ink-bw](e-ink-bw/) | XIAO 7.5" e-paper calendar, 5 views | esp32-c3-devkitm-1 | ✅ Live, verified |
+| [stack5echo-voice-assist](stack5echo-voice-assist/) | M5Stack Atom EchoS3R — hears **and** speaks | esp32s3box | ✅ Live, verified end-to-end |
 | [alarmo-audio-generator](alarmo-audio-generator/) | ReSpeaker Lite voice + Alarmo audio | esp32-s3-devkitc-1 | ✅ Live, verified |
-| [voice7exp](voice7exp/) | ESP32-P4 voice satellite — **mic half of a pair** | esp32p4 | ⚠️ Live, wake test pending |
+| [voice7exp](voice7exp/) | ESP32-P4 — **mic half of a pair** | esp32p4 | ⚠️ Live, wake test pending |
 | [p4-voice-assist-guition](p4-voice-assist-guition/) | Guition ESP32-P4 — **speaker half of a pair** | esp32p4 | ⚠️ Live, TTS verified, Ethernet dead |
-| [rotorydialesp32](rotorydialesp32/) | MaTouch round 480×480 rotary dimmer | esp32-s3-devkitc-1 | ⚠️ Works, pinned to an old ESPHome |
-| [480livingdimmer](480livingdimmer/) | 480px round LVGL touch dimmer | esp32s3 | ⚠️ Good config, device repurposed since |
-| [480alarmokeypad](480alarmokeypad/) | 480px round Alarmo touch keypad | esp32s3 | ⚠️ Config ahead of hardware (no OTA) |
-| [newrotary](newrotary/) | Rotary countdown timer (garage) | esp32-s3-devkitc-1 | ✅ Live, frozen — do not disturb |
-| [32x64-countdown](32x64-countdown/) | HUB75 LED matrix alarm countdown | esp32dev | ⚠️ Live, one dead sensor |
-| [second-64x64-with-trinity](second-64x64-with-trinity/) | 64×64 HUB75 on ESP32-Trinity | esp32-trinity | ⚠️ Live, same caveat |
+
+### 🖥️ Wall controls
+
+| Device | What it is | Board | Status |
+|---|---|---|---|
+| [480alarmokeypad](480alarmokeypad/) | 480×480 Alarmo touch keypad | esp32s3 | ⚠️ Config ahead of hardware (no OTA) |
+| [rotorydialesp32](rotorydialesp32/) | MaTouch round rotary light dimmer | esp32-s3-devkitc-1 (round) | ⚠️ Works, pinned to an old ESPHome |
+| [480livingdimmer](480livingdimmer/) | 480×480 LVGL touch dimmer | esp32s3 | ⚠️ Good config, device repurposed since |
+
+### 📄 E-paper displays
+
+| Device | What it is | Board | Status |
+|---|---|---|---|
+| [e-ink-bw](e-ink-bw/) | XIAO 7.5" e-paper calendar, 5 views | esp32-c3-devkitm-1 | ✅ Live, verified |
 | [paperd-calendar](paperd-calendar/) | Paperd.ink Merlot e-paper, 7 views | esp32dev | ⏳ Compiles clean, unverified on hardware |
-| [window-opener](window-opener/) | Motorized window → HA cover | TBD | 📐 Scaffolding only, no hardware yet |
+
+### 🔧 Not built yet
+
+| Device | What it is | Board | Status |
+|---|---|---|---|
+| [window-opener](window-opener/) | Motorized window → HA cover (Zigbee, no ESP) | TBD | 📐 Scaffolding only, no hardware yet |
 
 ## Things that cost me real time
 
