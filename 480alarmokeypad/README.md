@@ -1,6 +1,12 @@
-# 480px round Alarmo touch keypad
+# 480px Alarmo touch keypad
 
-**Board:** ESP32-S3 (4848S040 round 480×480 touch panel)
+**Board:** ESP32-S3 (4848S040 480×480 touch panel)
+
+![Alarmo touch keypad mounted on the wall, showing DISARMED / READY](images/keypad-wall.jpg)
+
+| Wall mounted | Keypad screen |
+|:-:|:-:|
+| ![Flush wall mount in a standard trim plate](images/keypad-wall.jpg) | ![Code entry keypad with ARM HOME / ARM AWAY / DISARM and live armed-state readout](images/keypad-screen.jpg) |
 
 ## Status — where this actually stands
 

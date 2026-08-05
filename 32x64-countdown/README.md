@@ -6,6 +6,13 @@
 > itself `64x64-countdown`. Historical naming drift on my side — the config is
 > the one that runs.
 
+| Clock + armed state | Alarm countdown page |
+|:-:|:-:|
+| ![LED matrix showing DISARMED in magenta above a large green clock](images/matrix-clock.jpg) | ![Same matrix showing DISARMED above a red ALARM COUNTDOWN readout](images/matrix-countdown.jpg) |
+
+Big, legible from across the room, and readable in daylight — which is the whole
+point of using a HUB75 panel instead of a small display.
+
 ## Status — where this actually stands
 
 **⚠️ Live and running, with one known dead readout and one misleading label.**

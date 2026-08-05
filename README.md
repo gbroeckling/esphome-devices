@@ -7,6 +7,8 @@ These are not polished reference designs. They are working configs off a live
 system, with the scars documented. Every device below has a **Status** section in
 its own README saying exactly where it stands.
 
+![Alarmo touch keypad running one of these configs, wall mounted and showing live armed state](images/hero-alarmo-keypad.jpg)
+
 ## Adopt one in about 30 seconds
 
 Every config carries `dashboard_import`, so the easiest path is the ESPHome

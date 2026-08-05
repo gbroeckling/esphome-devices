@@ -10,6 +10,9 @@ The second of two LED matrix displays in the house, on the
 [ESP32-Trinity](https://github.com/witnessmenow/ESP32-Trinity) driver board —
 which is a much nicer way to drive HUB75 than hand-wiring a bare esp32dev.
 
+It renders the same pages as its sibling — see the photos in
+[32x64-countdown](../32x64-countdown/) for what the output looks like.
+
 ### Known issues
 
 Identical to [32x64-countdown](../32x64-countdown/):

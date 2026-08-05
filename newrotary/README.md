@@ -2,6 +2,8 @@
 
 **Board:** esp32-s3-devkitc-1 (Makerfabs round display, CST826 touch)
 
+![Round rotary dial display showing the LIGHTS DEPARTURE TIME countdown label](images/rotary-countdown.jpg)
+
 ## Status — where this actually stands
 
 **✅ Live, stable, and deliberately frozen.**
