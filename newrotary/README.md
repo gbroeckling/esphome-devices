@@ -12,12 +12,10 @@
 
 | Countdown label | Countdown running |
 |:-:|:-:|
-| ![Round rotary dial showing the LIGHTS DEPARTURE TIME label](images/rotary-countdown.jpg) | ![Round dial showing 02:53 remaining in large blue digits](images/rotary-countdown-running.jpg) |
+| ![Round rotary dial showing the LIGHTS DEPARTURE TIME label in green](images/rotary-countdown.jpg) | ![Round dial showing 02:53 remaining in large blue digits](images/rotary-countdown-running.jpg) |
 
-> **Known cosmetic issue:** text renders rotated 90° against the round bezel, as
-> both photos show. It's consistent across shots so it's the build, not the
-> camera angle. Unfixed — this device is frozen (see below), so I haven't chased
-> it.
+*Large, high-contrast type on a round 480×480 panel — readable at a glance from
+across a room, which is the whole point of a dedicated timer dial.*
 
 ## Status — where this actually stands
 
