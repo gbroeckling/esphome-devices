@@ -4,6 +4,13 @@
 **Mic:** external INMP441-style I²S microphone
 **Wake word:** microWakeWord (`hey_jarvis`)
 
+| The touch dashboard | Panel and bezel |
+|:-:|:-:|
+| ![7-inch panel showing the car-door timer, house light buttons and WLED presets](images/voice7exp-controls.jpg) | ![The same 7-inch panel viewed at an angle](images/voice7exp-panel.jpg) |
+
+*The same board that carries the microphone also runs an LVGL touch dashboard —
+car-door timer across the top, house lights below, WLED presets at the bottom.*
+
 ## Status — where this actually stands
 
 **✅ Running, verified end to end 2026-08-04** — wake word spoken at the panel,

@@ -8,6 +8,13 @@
 > [countdown system](../32x64-countdown/) displays. Same CST826 touch component,
 > so the ESPHome version constraint below applies to both dials.
 
+| The light selector | In the hand |
+|:-:|:-:|
+| ![Round 480x480 dial showing a grid of light names with ALL at the top](images/rotary-light-selector.jpg) | ![The same round dial held at an angle](images/rotary-light-selector-angle.jpg) |
+
+*Pick a light — or **ALL** — on the touch screen, then turn the knob to dim it.
+Green means that light is currently on.*
+
 ## Status — where this actually stands
 
 **✅ Running. Flashed and verified 2026-08-02, and it feels good on LEDs now.**
