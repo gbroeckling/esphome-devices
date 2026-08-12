@@ -154,7 +154,7 @@ it. I'll update this section the moment a single P4 does the whole job.
 ## Contributing
 
 Issues and Discussions are open. If one of these works on a board I don't have, or
-you fix something I flagged as broken, I want to hear about it.
+you improve on a caveat I've flagged, I want to hear about it.
 
 ## License
 
