@@ -38,7 +38,7 @@ substitutions:
 esphome:
   project:
     name: "gbroeckling.480alarmokeypad"
-    version: "1.0.0"
+    version: "2026-08-17"
   name: ${name}
   friendly_name: ${friendly_name}
 

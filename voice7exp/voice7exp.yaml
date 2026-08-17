@@ -50,7 +50,7 @@ substitutions:
 esphome:
   project:
     name: "gbroeckling.voice7exp"
-    version: "1.0.0"
+    version: "2026-08-04"
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2026.7.0

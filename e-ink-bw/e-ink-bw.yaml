@@ -32,7 +32,7 @@ substitutions:
 esphome:
   project:
     name: "gbroeckling.e-ink-bw"
-    version: "1.0.0"
+    version: "2026-07-31"
   name: xiao-75-epaper-calendar
   friendly_name: "XIAO 7.5 ePaper Calendar"
   on_boot:

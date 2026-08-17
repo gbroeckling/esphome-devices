@@ -18,7 +18,7 @@ substitutions:
 esphome:
   project:
     name: "gbroeckling.p4-voice-assist-guition"
-    version: "1.0.0"
+    version: "2026-08-17"
   name: ${name}
   friendly_name: ${friendly_name}
   comment: "JC-ESP32P4-M3-DEV: Alarmo VA + Ethernet"

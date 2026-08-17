@@ -1,7 +1,7 @@
 esphome:
   project:
     name: "gbroeckling.32x64-countdown"
-    version: "1.0.0"
+    version: "2026-07-31"
   name: 64x64-countdown
   friendly_name: 64x64-countdown
 

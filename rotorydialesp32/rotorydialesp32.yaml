@@ -33,7 +33,7 @@ substitutions:
 esphome:
   project:
     name: "gbroeckling.rotorydialesp32"
-    version: "1.0.0"
+    version: "2026-08-02"
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2024.11.0

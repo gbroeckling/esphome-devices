@@ -42,7 +42,7 @@ substitutions:
 esphome:
   project:
     name: "gbroeckling.paperd-calendar"
-    version: "1.0.0"
+    version: "2026-07-31"
   name: paperdink_merlot
   friendly_name: Paperd.ink Merlot
   on_boot:
