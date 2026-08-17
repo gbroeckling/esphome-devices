@@ -16,6 +16,9 @@ substitutions:
   default_volume: "0.70"
 
 esphome:
+  project:
+    name: "gbroeckling.p4-voice-assist-guition"
+    version: "1.0.0"
   name: ${name}
   friendly_name: ${friendly_name}
   comment: "JC-ESP32P4-M3-DEV: Alarmo VA + Ethernet"

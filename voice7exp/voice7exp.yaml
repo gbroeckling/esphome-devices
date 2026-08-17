@@ -48,6 +48,9 @@ substitutions:
   w8: "light.upper_south_2"
 
 esphome:
+  project:
+    name: "gbroeckling.voice7exp"
+    version: "1.0.0"
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2026.7.0

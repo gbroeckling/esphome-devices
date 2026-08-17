@@ -30,6 +30,9 @@ substitutions:
   cal4_entity: "calendar.shared"
 
 esphome:
+  project:
+    name: "gbroeckling.e-ink-bw"
+    version: "1.0.0"
   name: xiao-75-epaper-calendar
   friendly_name: "XIAO 7.5 ePaper Calendar"
   on_boot:

@@ -27,6 +27,9 @@ substitutions:
   voice_assist_timer_finished_phase_id: "20"
 
 esphome:
+  project:
+    name: "gbroeckling.stack5echo-voice-assist"
+    version: "1.0.0"
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2026.1.0

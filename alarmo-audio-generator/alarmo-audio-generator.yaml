@@ -19,6 +19,9 @@ substitutions:
   default_volume: "0.70"
 
 esphome:
+  project:
+    name: "gbroeckling.alarmo-audio-generator"
+    version: "1.0.0"
   name: ${name}
   friendly_name: ${friendly_name}
   on_boot:

@@ -28,6 +28,9 @@ substitutions:
   e8_name: "Office Pots"
 
 esphome:
+  project:
+    name: "gbroeckling.480livingdimmer"
+    version: "1.0.0"
   name: ${name}
   friendly_name: ${friendly_name}
   on_boot:

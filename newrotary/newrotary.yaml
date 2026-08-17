@@ -8,6 +8,9 @@ substitutions:
   garage_close_relay: "switch.prodino1_relay_2"
 
 esphome:
+  project:
+    name: "gbroeckling.newrotary"
+    version: "1.0.0"
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2025.12.0
