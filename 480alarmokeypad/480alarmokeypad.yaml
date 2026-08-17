@@ -36,6 +36,9 @@ substitutions:
   code_length: "4"
 
 esphome:
+  project:
+    name: "gbroeckling.480alarmokeypad"
+    version: "2026-08-17"
   name: ${name}
   friendly_name: ${friendly_name}
 

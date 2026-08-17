@@ -40,6 +40,9 @@ substitutions:
   p6_name: "Wallet Seen"
 
 esphome:
+  project:
+    name: "gbroeckling.paperd-calendar"
+    version: "2026-07-31"
   name: paperdink_merlot
   friendly_name: Paperd.ink Merlot
   on_boot:

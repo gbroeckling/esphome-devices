@@ -31,6 +31,9 @@ substitutions:
   led_min_pct: "3"
 
 esphome:
+  project:
+    name: "gbroeckling.rotorydialesp32"
+    version: "2026-08-02"
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2024.11.0

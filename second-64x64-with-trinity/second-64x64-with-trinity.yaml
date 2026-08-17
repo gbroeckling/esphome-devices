@@ -1,4 +1,7 @@
 esphome:
+  project:
+    name: "gbroeckling.second-64x64-with-trinity"
+    version: "2026-08-17"
   name: second-64x64-with-trinity
   friendly_name: Second 64x64 with Trinity
 
