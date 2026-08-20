@@ -16,6 +16,12 @@ is running in my living room. It is a good config and it worked — it is just n
 longer under active daily use by me. If you adopt it and hit something, file an
 issue and I will dig in, but I won't catch regressions myself.
 
+That is also why this page carries no photo. The panel is still on the wall,
+but it renders WLED's interface now, so a picture taken today would document a
+different build rather than this one — and a 4848S040 with someone else's UI on
+it is indistinguishable from the [alarm keypad](../480alarmokeypad/) by eye. The
+screenshots that would show this config no longer exist to be taken.
+
 ### Notes
 
 - The brightness slider has a **3% LED floor** — see the
