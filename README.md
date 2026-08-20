@@ -83,8 +83,8 @@ interesting without something feeding them.
 **Two round dials, same hardware, different jobs:**
 [rotorydialesp32](rotorydialesp32/) dims lights, while
 [newrotary](newrotary/) runs the countdown above. Both are Makerfabs round
-displays on the CST826 touch component, so both are pinned to the older ESPHome
-branch — if you build one, the other's notes apply too.
+displays on the CST826 touch component — if you build one, the other's notes
+apply too.
 
 ### 📄 E-paper displays
 
@@ -110,10 +110,13 @@ stops, and **the device otherwise looks completely healthy** — connected, logg
 responding. It just never hears you. This cost me months on the Atom EchoS3R.
 Build wake-word devices on **2026.7.3 or newer**.
 
-**2. …but not everything can move forward.** The `cst826` touch component in the
-MaTouch rotary only compiles on the older branch. There is a genuine version split
-in this repo: wake-word devices need new ESPHome, some touch devices need old.
-Each README says which.
+**2. A version split I reported here has since closed.** This used to say the
+`cst826` touch component on the MaTouch dials only compiled on the older branch,
+forcing a split against the wake-word devices that need 2026.7.3+. Rechecked
+2026-08-19 and it no longer reproduces: both dial configs compile and link on
+2026.7.3. The general lesson survives even though this instance did not — an
+external component can pin you to an old branch, and it is worth re-testing that
+assumption occasionally rather than carrying it forward forever.
 
 **3. ESPHome 2026.7 broke LVGL rotation, twice.** Rotation moved from the
 `display:` block to the `lvgl:` block. And once LVGL owns rotation you must

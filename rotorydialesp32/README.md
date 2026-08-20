@@ -6,7 +6,7 @@
 > **Sibling dial** — [newrotary](../newrotary/) is the same Makerfabs round
 > hardware running a countdown timer instead of a dimmer, and it drives the
 > [countdown system](../32x64-countdown/) displays. Same CST826 touch component,
-> so the ESPHome version constraint below applies to both dials.
+> CST826 touch component, so the version note below applies to both dials.
 
 | The light selector | In the hand |
 |:-:|:-:|
@@ -18,18 +18,22 @@ Green means that light is currently on.*
 ## Status — where this actually stands
 
 **✅ Running. Flashed and verified 2026-08-02, and it feels good on LEDs now.**
-One constraint worth knowing before you build: it is pinned to an older ESPHome.
 
 A wall dimmer that drives a group of lights from one knob, using delta-from-a-baseline
 group dimming with per-light bitmask toggles on the LVGL buttons, so you can pick
 which lights the knob is currently driving.
 
-### Version constraint — read this first
+### ESPHome version — the old constraint no longer applies
 
-**This config only compiles on ESPHome 2026.2.1.** The `cst826` touch external
-component does not build on newer branches. That is the opposite of the wake-word
-devices in this repo, which *require* 2026.7.3+. There is a genuine version split
-here and I have not resolved it.
+This page used to say the config only built on ESPHome 2026.2.1, because the
+`cst826` touch external component would not compile on newer branches. **That is
+no longer true.** Rechecked 2026-08-19: this config compiles and links cleanly on
+ESPHome 2026.7.3 (RAM 35.0%, flash 12.7%), and so does the
+[countdown dial](../newrotary/) that shares the component.
+
+Being precise about what was tested: it *builds*. I have not reflashed the
+physical dial onto 2026.7.3, so read that as "compiles", not "verified running on
+the new branch" — the dial on my wall is still on the older image.
 
 ### Making a rotary knob feel right on LED loads
 

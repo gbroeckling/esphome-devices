@@ -8,7 +8,7 @@
 >
 > **Sibling dial** — [rotorydialesp32](../rotorydialesp32/) is the same Makerfabs
 > round hardware doing a completely different job (group light dimming). Same
-> CST826 touch component, so the same ESPHome version constraint applies to both.
+> CST826 touch component, so the version note there applies to both.
 
 | Countdown label | Countdown running |
 |:-:|:-:|
@@ -37,9 +37,11 @@ been through the ESPHome-2026.7 modernisation that some other configs here have.
 
 - Not to be confused with [rotorydialesp32](../rotorydialesp32/), which is similar
   hardware doing a completely different job (group light dimming).
-- Same CST826 touch external component as the dimmer, so the same **ESPHome
-  2026.2.1** version constraint most likely applies. I have not tested it on a
-  newer branch.
+- Same CST826 touch external component as the dimmer. That used to mean both
+  dials were stuck on ESPHome 2026.2.1; **that constraint is gone.** Rechecked
+  2026-08-19: this config compiles and links on ESPHome 2026.7.3 (RAM 34.1%,
+  flash 14.5%). Not yet reflashed onto that branch on real hardware, so the claim
+  is that it builds, not that it is proven running there.
 - Published entity names are mine; repoint anything consuming the countdown.
 
 ## Usage
